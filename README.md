@@ -1,5 +1,5 @@
 # Arc Overhang
-![fast-and-easy-supportless](examples/Example_Catch_Image.png)
+![fast-and-easy-supportless](examples/ExampleCatchImage.png)
 
 A 3D printer toolpath generation algorithm that lets you print 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
 
