@@ -29,18 +29,25 @@ To get perfect results you need to tune the process to fit your machine. Also it
 For more details visit: https://github.com/stmcculloch/arc-overhang
 ## 3. Setup-Process
 1. download and install Python 3, at least Version 3.5, check the "add to PATH" box during the installation.
-2. install the librarys [shapely 1.8.5](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
+2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
 3. Ready to go!
 
 
-### 4. How to use it:
-Option A) open your system console and type 'python ' followed by the path to this script and the path of the gcode file. Will overwrite the file.
-Option B) open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
-    In that window enter: full path to your python exe,emtyspace, full path to this script.
-    If the python path contains any empty spaces, mask them as described here: https://manual.slic3r.org/advanced/post-processing
-=>PrusaSlicer will execute the script after the export of the Gcode, therefore the view in the window wont change. Open the finished gcode file to see the results.
+## 4. How to use it:
+#### Option A) via Console
+Simply open your system console and type 'python ' 
+followed by the path to this script 
+and the path of the gcode file. Will overwrite the file.
+#### Option B) use it as a automatic post-processing script in PrusaSlicer
+1. open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
+2. In that window enter: full-path-to-your-python-exe full-path-to-this-script-incl-filename
+3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in the window wont change. 
+4. Open the finished gcode file to see the results.
 
-If you want to change generation settings: Scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
+Notes to nail it first try:
+If the python path contains any empty spaces, mask them as described here: https://manual.slic3r.org/advanced/post-processing
+
+If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
 
 ## 5. Current Limitations
 1. The Arc-Generation is not hole-tolerant yet.
@@ -60,19 +67,20 @@ The overhang print quality is greatly improved when the material solidifies as q
 3. **Print slowly.** I use around 2 mm/s. Even that is too fast sometimes for the really tiny arcs, since they have almost no time to cool before the next layer begins.
 
 ## 7. Room for Improvement
-I/We would be happy if you contribute!
+We would be happy if you contribute!
 Further optimize the settings or make the use more convinient. 
 You could prevent warping by automaticly slowing down in the next few layers (eg 2mm).
 You could make the algorithm hole tolerant, is a little complicated though.
-The sky is the limit :P
+Feel free to give it a try!
 
 ## 8. Printer Compatibility
 
 By default, the output gcode should print fine on most standard desktop FDM printers you can use with PrusaSlicer. PrusaSlicer is mandatory as the script listens to sepcific keywords....
 
-## 9. Easy Way to try Out:
+## 9. Easy Way to try Out
 
 If you want to try the prints without installing, Steven and I added some test print gcode files in the root directory that you can directly download. They should print fine on most printers although you may need to manually adjust the gcode so that it works with your printer.
 
 
-## 10. Print it! If you get a successful print using this algorithm, I'd (and I am sure Steven to) love to hear about it.
+## 10. Print it! 
+If you get a successful print using this algorithm, I'd (and I am sure Steven to) love to hear about it.
