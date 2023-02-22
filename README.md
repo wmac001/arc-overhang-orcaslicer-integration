@@ -1,7 +1,8 @@
 # Arc Overhang
 
 A 3D printer toolpath generation algorithm that lets you print 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
-This script provides a simple and convinient way to integrate the functionality into PrusaSlicer as a post-processing script.
+
+**Now it it easy and convinient to use by to integrate the functionality into PrusaSlicer as a post-processing script.**
 
 ## 0. Videos
 
@@ -24,7 +25,7 @@ Here's what this effect looks like while printing:
 ![printing demo](examples/printing_demo.gif)
 
 2. You can start an **arc** on an **arc** to get ridiculously large overhangs.
-To get perfect results you need to tune the process to fit your machine. Also it is painfully slow, but still faster than support+ removal :P
+To get perfect results you need to tune the process to fit your machine. Also it is painfully slow, but still faster than support + removal :P
 
 For more details visit: https://github.com/stmcculloch/arc-overhang
 ## 3. Setup-Process
