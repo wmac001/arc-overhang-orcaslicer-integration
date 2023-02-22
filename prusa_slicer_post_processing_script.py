@@ -1,3 +1,41 @@
+"""
+This script generates Overhangs by stringing together Arcs, allowing successful fdm-3d-printing of large 90 deg overhangs!
+The genius Idea is emerged from Steven McCulloch, who coded a demonstration and the basic mechanics: https://github.com/stmcculloch/arc-overhang
+This python script builds up on that and offers a convinient way to integrate the ArcOverhangs into an existing gcode-file.
+
+HOW TO USE: 
+Option A) open your system console and type 'python ' followed by the path to this script and the path of the gcode file. Will overwrite the file.
+Option B) open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
+    In that window enter: full path to your python exe,emtyspace, full path to this script.
+    If the python path contains any empty spaces, mask them as described here: https://manual.slic3r.org/advanced/post-processing
+=>PrusaSlicer will execute the script after the export of the Gcode, therefore the view in the window wont change. Open the finished gcode file to see the results.
+
+If you want to change generation settings: Scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
+
+Requirements:
+Python 3.5+ and the librarys: shapely 1.8+, numpy 1.2+, matplotlib for debugging
+
+Limitations:
+-The Arc-Generation is not hole-tolerant yet.
+-All Usecases with multiple spots for arc generation are not testet yet and might contain bugs.
+-The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker than expected=>if precision needed make test prints to counter this effect.
+
+Notes:
+This code is a little messy. Usually I would devide it into multiple files, but that would compromise the ease of use.
+Therefore I divided the code into sections, marked with ###
+Feel free to give it some refactoring and add more functionalities!
+
+Future possible extensions:
+-slow down all commands 5mm above arcs, to prevent warping, slow down the bridging-speed of the perimeter, if necessary
+-hole tolerant
+-print the small arcs even slower with dynamic speed adjustment
+
+Known issues:
+-sometimes rMin not correct and some arcs are missing.
+-pointsPerCircle>80 give weird results
+-avoid using the code multiple times onto the same gcode, as errors might accumulate.
+"""
+#!/usr/bin/python
 import sys
 import os
 from shapely import Point, Polygon, LineString, GeometryCollection, MultiLineString, MultiPolygon
@@ -10,6 +48,7 @@ import warnings
 
 ########## Parameters  - adjust values here as needed ##########
 def makeFullSettingDict(gCodeSettingDict:dict) -> dict: 
+    """Merge Two Dictionarys and set some keys/values explicitly"""
     #add keys below, when you want to add a setting or overwrite an existing key from the config in the gcode. For some parameters the default settings form the gcode can be copied via gCodeSettingDict.get(key)
     AddManualSettingsDict={
         "notPerformPerimeterCheck":False, #Usual gcode:external perimeter->overhang->... this condition is checked, to ensure the Arcs are generated within the ext perimeter only and not for each perimeter. Can be turned of to handle edge-case: only overhang-perimeter in gcode.
@@ -19,12 +58,12 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "plotArcs":False, #plot arcs for every filled polygon. use for debugging
         "CornerImportanceMultiplier":1, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
         "minDistanceFromExtPerimeter":(gCodeSettingDict.get("perimeters")-1)*gCodeSettingDict.get("perimeter_extrusion_width"), #when having multiple perimeters the arcs would overlap with the inner ones. Regulate with this parameter,current=Toolpath can be coincident with perimeter,overlap=width/2
-        "ArcPrintSpeed":2*60, #Unit:mm/min
+        "ArcPrintSpeed":1.5*60, #Unit:mm/min
         "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
-        "ArcWidth":gCodeSettingDict.get("nozzle_diameter"), #change the spacing between the arcs,should be nozzle_diameter
-        "ArcExtrusionMultiplier":1.2,
+        "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
+        "ArcExtrusionMultiplier":1.35,
         "rMax":15, # the max radius of the arcs.
         "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*2,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "pointsPerCircle":80 # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
@@ -654,18 +693,6 @@ print("write to file")
 for layer in layerobjs:
     f.writelines(layer.lines)
 f.close()    
-os.startfile(path2GCode, 'open')
+#os.startfile(path2GCode, 'open')
 print("Code executed successful")
-
-
-#ToDO:
-#DocString
-
-
-#Future possible extensions:
-#slow down all commands 5mm above arcs, turn on fan at bridging setting, slow down the bridging-speed of the perimeter, if necessary
-#hole tolerant
-
-#known issues:
-#sometimes rMin not correct
-#avoid using the code multiple times onto the same gcode.
+input("Push enter to close this window")
