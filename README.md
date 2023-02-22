@@ -2,7 +2,7 @@
 
 A 3D printer toolpath generation algorithm that lets you print 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
 
-**Now it it easy and convinient to use by to integrate the functionality into PrusaSlicer as a post-processing script.**
+**Now it is easy and convinient to use by to integrate the functionality into PrusaSlicer as a post-processing script.**
 
 ## 0. Videos
 
