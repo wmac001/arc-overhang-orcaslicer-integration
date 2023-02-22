@@ -1,4 +1,5 @@
 # Arc Overhang
+![fast-and-easy-supportless](examples/Example_Catch_Image.png)
 
 A 3D printer toolpath generation algorithm that lets you print 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
 
@@ -13,6 +14,7 @@ A 3D printer toolpath generation algorithm that lets you print 90° overhangs wi
 This is a basic visualisation how the algorithm works: 
 
 ![arc-overhang visualization](examples/gcode_vis3.gif)
+
 (this visualisation uses depth first generation, the current version uses breadth first search algorithm to fill the remaining space in the overhang.
 ## 1. Brief Explanation (from Steven McColloch):
 
@@ -61,7 +63,8 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 There are a few rules of thumb for actually printing this stuff: 
 
 The overhang print quality is greatly improved when the material solidifies as quickly as possible. Therefore:
-
+0. **Currently necessary PrusaSlicer Settings** :only 1 bottom layer, infill above arcs 100% hilbert curve, as many layers as you like, important to reduce warping. Use height modifier or modifier-mesh in the area. Thin layers also help.
+  
 1. **Print as cold as possible.** I used 190 degrees for PLA. You can probably go even lower. If you require higher temp for the rest of the print, you could insert could insert some temp-change gcode before and after the arcs are printed. Might waste a lot of time though.
    
 2. **Maximize cooling.** Set your fans to full blast. I don't think this technique will work too well with ABS and materials that can't use cooling fans, but I haven't tested it.
