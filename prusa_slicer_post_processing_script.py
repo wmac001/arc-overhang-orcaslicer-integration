@@ -31,8 +31,8 @@ Future possible extensions:
 -print the small arcs even slower with dynamic speed adjustment
 
 Known issues:
--sometimes rMin not correct and some arcs are missing.
 -pointsPerCircle>80 give weird results
+-maxDistanceFromPerimeter >=2*perimeterwidth=weird result.
 -avoid using the code multiple times onto the same gcode, as errors might accumulate.
 """
 #!/usr/bin/python
@@ -58,16 +58,18 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "plotArcs":False, #plot arcs for every filled polygon. use for debugging
         "CornerImportanceMultiplier":1, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
         "minDistanceFromExtPerimeter":(gCodeSettingDict.get("perimeters")-1)*gCodeSettingDict.get("perimeter_extrusion_width"), #when having multiple perimeters the arcs would overlap with the inner ones. Regulate with this parameter,current=Toolpath can be coincident with perimeter,overlap=width/2
-        "ArcPrintSpeed":1.5*60, #Unit:mm/min
+        "ArcPrintSpeed":3*60, #Unit:mm/min
+        "ArcMinPrintSpeed":1*60,#Unit:mm/min
+        "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
         "ArcExtrusionMultiplier":1.35,
         "rMax":15, # the max radius of the arcs.
-        "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*2,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
+        "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*1.5,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
-        "extendArcDist":0.5 # extend Arcs for better bonding bewteen them, only end-piece affected(yet)
+        "extendArcDist":0.5 # extend Arcs for better bonding bewteen them, only end-piece affected(yet), Unit:mm
     }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -297,8 +299,38 @@ class Layer():
         return export            
 
                             
-
-
+class Arc():
+    def __init__(self,center:Point,r:float,kwargs={}) -> None:
+        self.center=center
+        self.r=r
+        self.pointsPerCircle=kwargs.get("pointsPerCircle",80)
+    def setPoly(self,poly:Polygon)->None:
+        self.poly=poly    
+    def extractArcBoundary(self)->LineString:
+        circ=create_circle(self.center,self.r,self.pointsPerCircle)    
+        trueArc=self.poly.boundary.intersection(circ.boundary.buffer(1e-2))
+        if trueArc.geom_type=='MultiLineString':
+            merged=linemerge(trueArc)
+        elif trueArc.geom_type=='LineString':
+            self.arcline=trueArc
+            return trueArc
+        else:
+            #print("Other Geom-Type:",trueArc.geom_type)
+            merged=linemerge(MultiLineString([l for l in trueArc.geoms if l.geom_type=='LineString']))
+        if merged.geom_type=="LineString":
+            self.arcline=merged
+            return merged                             
+        elif merged.geom_type=="MultiLineString": #Error handling
+            warnings.warn("Boundary was not continous, only first part passed")
+            self.arcline=merged.geoms[0]
+            return merged.geoms[0]
+        else:
+            raise ValueError("ArcBoundary merging Error")
+    def generateConcentricArc(self,startpt:Point,remainingSpace:Polygon|MultiPolygon)->Polygon:
+        circ=create_circle(startpt,self.r,self.pointsPerCircle)
+        arc=circ.intersection(remainingSpace)
+        self.poly=arc
+        return arc            
 
 ############ Helper Functions Arc Generation #####
 def midpoint(p1:Point, p2:Point):
@@ -403,44 +435,22 @@ def move_toward_point(start_point:Point, target_point:Point, distance:float)->Po
     return Point(start_point.x + dx*distance, start_point.y + dy*distance)        
 
 
-def extractArcBoundary(arc:Polygon,center:Point,r:float)->LineString:
-    circ=create_circle(center,r,80)    
-    trueArc=arc.boundary.intersection(circ.boundary.buffer(1e-2))
-    if trueArc.geom_type=='MultiLineString':
-        merged=linemerge(trueArc)
-    elif trueArc.geom_type=='LineString':
-        return trueArc
-    else:
-        #print("Other Geom-Type:",trueArc.geom_type)
-        merged=linemerge(MultiLineString([l for l in trueArc.geoms if l.geom_type=='LineString']))
-    if merged.geom_type=="LineString":
-        return merged                             
-    elif merged.geom_type=="MultiLineString": #Error handling
-        warnings.warn("Boundary was not continous, only first part passed")
-        return merged.geoms[0]
-    else:
-        raise ValueError("ArcBoundary merging Error")    
-
-def generateConcentricArc(startpt:Point,r:float,remainingSpace:Polygon|MultiPolygon)->Polygon:
-    circ=create_circle(startpt,r,pointsPerCircle)
-    arc=circ.intersection(remainingSpace)
-    return arc
     
-def generateMultipleConcentricArcs(startpt:Point,rMin:float,rMax:float, boundaryLineString:LineString,remainingSpace:Polygon|MultiPolygon,kwargs={})->tuple[list,list]:
+
+
+    
+def generateMultipleConcentricArcs(startpt:Point,rMin:float,rMax:float, boundaryLineString:LineString,remainingSpace:Polygon|MultiPolygon,kwargs={})->list:
     arcs=[]
-    arcBoundarys=[]
     r=rMin
-    thresholdedBoundary=boundaryLineString.buffer(kwargs.get("minDistanceFromExtPerimeter",0.25))
-    while r<rMax:
-        arc=generateConcentricArc(startpt,r,remainingSpace)
-        if arc.intersects(thresholdedBoundary):
+    while r<=rMax:
+        arcObj=Arc(startpt,r,kwargs=kwargs)
+        arc=arcObj.generateConcentricArc(startpt,remainingSpace)
+        if arc.intersects(boundaryLineString):
             break
-        arcs.append(arc)
-        arc4gcode=extractArcBoundary(arc,startpt,r)
+        arcs.append(arcObj)
         #print("True Arc type:",type(arc4gcode))
-        arcBoundarys.append(arc4gcode)
-        r+=arcWidth
-    return arcs,arcBoundarys
+        r+=kwargs.get("ArcWidth")
+    return arcs
 
 
 ############ Helper Functions Arc Validation #####
@@ -514,6 +524,8 @@ def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
         return False
     if gCodeSettingDict.get("infill_first"):
         warnings.warn("Infill is printed before perimeter. This can cause problems with the script.")
+    if gCodeSettingDict.get("external_perimeters_first"):
+        warnings.warn("External perimeter is printed before inner perimeters. Change for better overhang performance. ")    
     return True
 def calcEStepsPerMM(settingsdict:dict)->float:
     eVol = (settingsdict.get("nozzle_diameter")/2)**2 * np.pi *settingsdict.get("ArcExtrusionMultiplier",1)#printing in midair will result in circular shape. Scource: https://manual.slic3r.org/advanced/flow-math
@@ -548,21 +560,23 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
     #plt.show()      
     extDist=kwargs.get("extendArcDist",0.5)
     pExtend=move_toward_point(pts[-2],pts[-1],extDist)
+    arcPrintSpeed=np.clip(arcline.length/(kwargs.get("ArcSlowDownBelowThisDuration",3))*60,
+                            kwargs.get("ArcMinPrintSpeed",1*60),kwargs.get('ArcPrintSpeed',2*60)) # *60 bc unit conversion:mm/s=>mm/min
     for idp,p in enumerate(pts):
         if idp==0:
             p1=p
-            GCodeLines.append(f";Arc {arcidx if arcidx else ' '}\n")
+            GCodeLines.append(f";Arc {arcidx if arcidx else ' '} Length:{arcline.length}\n")
             GCodeLines.append(p2GCode(p,F=kwargs.get('ArcTravelFeedRate',100*60)))#feedrate is mm/min...
             GCodeLines.append(retractGCode(retract=False))
-            GCodeLines.append(setFeedRateGCode(kwargs.get('ArcPrintSpeed',120)))
+            GCodeLines.append(setFeedRateGCode(arcPrintSpeed))
         else:
             dist=p.distance(p1)
             if dist>kwargs.get("GCodeArcPtMinDist",0.1):
                 GCodeLines.append(p2GCode(p,E=dist*eStepsPerMM))
                 p1=p
         if idp==len(pts)-1:
+            GCodeLines.append(p2GCode(pExtend,E=extDist*eStepsPerMM))#extend arc tangentially for better bonding between arcs
             GCodeLines.append(retractGCode(retract=True))
-            GCodeLines.append(p2GCode(pExtend,E=extDist*eStepsPerMM))#insert Travel Move tangent to arc for better bonding beteenarcs
     return GCodeLines        
 
 
@@ -610,16 +624,18 @@ if __name__=="__main__":
                         prevLayer.makeExternalPerimeter2Polys()
                         startLineString=prevLayer.makeStartLineString(pts[-2],pts[-1],parameters)
                         boundaryLineString=LineString(poly.exterior.coords[:-1])
+                        thresholdedboundaryLS=boundaryLineString.buffer(parameters.get("minDistanceFromExtPerimeter",0.25))
                         polyWithCompleteBoundary=Polygon(list(startLineString.coords)+list(boundaryLineString.coords))
                         startpt=getstartptOnLS(startLineString,parameters)
                         remainingSpace=polyWithCompleteBoundary
                         #first step in Arc Generation
-                        concentricArcs,arcBoundarys=generateMultipleConcentricArcs(startpt,rMin,rMax,boundaryLineString,remainingSpace,parameters)
+                        concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,thresholdedboundaryLS,remainingSpace,parameters)
+                        arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                         #print(f"number of concentric arcs generated:",len(concentricArcs))
                         if concentricArcs:
                             finalarcs.append(concentricArcs[-1]) 
                             for arc in concentricArcs: 
-                                remainingSpace=remainingSpace.difference(arc.buffer(1e-2))
+                                remainingSpace=remainingSpace.difference(arc.poly.buffer(1e-2))
                                 arcs.append(arc)
                             for arcboundary in arcBoundarys:    
                                 arcs4gcode.append(arcboundary)
@@ -631,16 +647,18 @@ if __name__=="__main__":
                         safetyBreak=0
                         while idx<len(finalarcs):
                             print("while executed:",idx, len(finalarcs))
-                            farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(finalarcs[idx],polyWithCompleteBoundary,remainingSpace)
+                            curArc=finalarcs[idx]
+                            farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly,polyWithCompleteBoundary,remainingSpace)
                             if not farthestPointOnArc or longestDistance<maxDistanceFromPerimeter:#no more pts on arc
                                 idx+=1 #go to next arc
                                 continue
-                            startpt=move_toward_point(farthestPointOnArc,startpt,parameters.get("ArcCenterOffset",2))
-                            concentricArcs,arcBoundarys=generateMultipleConcentricArcs(startpt,rMin,rMax,boundaryLineString,remainingSpace,parameters)
+                            startpt=move_toward_point(farthestPointOnArc,curArc.center,parameters.get("ArcCenterOffset",2))
+                            concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,thresholdedboundaryLS,remainingSpace,parameters)
+                            arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                             #print(f"number of concentric arcs generated:",len(concentricArcs))
                             if len(concentricArcs)>0:
                                 for arc in concentricArcs: 
-                                    remainingSpace=remainingSpace.difference(arc.buffer(1e-2))
+                                    remainingSpace=remainingSpace.difference(arc.poly.buffer(1e-2))
                                     arcs.append(arc)
                                 finalarcs.append(concentricArcs[-1])
                                 for arcboundary in arcBoundarys:    
@@ -650,14 +668,15 @@ if __name__=="__main__":
                             safetyBreak+=1
                             if safetyBreak>2000:
                                 break
-                        if parameters.get("plotArcs"):
-                            plt.title(f"Iteration {idx}, Total No Start Points: {len(finalarcs)}, Total No Arcs: {len(arcs)}")
-                            plot_geometry(startLineString,'r')
-                            plot_geometry(boundaryLineString)
-                            plot_geometry(arcs,changecolor=True)
-                            plot_geometry(remainingSpace,'g',filled=True)
-                            plot_geometry(startpt,"r")
-                            plt.show()  
+                            if parameters.get("plotArcs"):
+                                plt.title(f"Iteration {idx}, Total No Start Points: {len(finalarcs)}, Total No Arcs: {len(arcs)}")
+                                plot_geometry(startLineString,'r')
+                                plot_geometry(boundaryLineString)
+                                plot_geometry([arc.poly for arc in arcs],changecolor=True)
+                                plot_geometry(remainingSpace,'g',filled=True)
+                                plot_geometry(startpt,"r")
+                                plt.axis('square')
+                                plt.show()  
                         
                         #generate gcode for arc and insert at the beginning of the layer
                         eStepsPerMM=calcEStepsPerMM(parameters)
