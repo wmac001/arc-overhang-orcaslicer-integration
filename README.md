@@ -69,6 +69,8 @@ The overhang print quality is greatly improved when the material solidifies as q
 
 ## 7. Room for Improvement
 We would be happy if you contribute!
+Currently the biggest issue is severe warping, when the infill layers above are printed. Suggestions?
+
 Further optimize the settings or make the use more convinient. 
 You could prevent warping by automaticly slowing down in the next few layers (eg 2mm).
 You could make the algorithm hole tolerant, is a little complicated though.
