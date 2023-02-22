@@ -18,7 +18,7 @@ Python 3.5+ and the librarys: shapely 1.8+, numpy 1.2+, matplotlib for debugging
 Limitations:
 -The Arc-Generation is not hole-tolerant yet.
 -All Usecases with multiple spots for arc generation are not testet yet and might contain bugs.
--The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker than expected=>if precision needed make test prints to counter this effect.
+-The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected=>if precision needed make test prints to counter this effect.
 
 Notes:
 This code is a little messy. Usually I would devide it into multiple files, but that would compromise the ease of use.
@@ -66,7 +66,8 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "ArcExtrusionMultiplier":1.35,
         "rMax":15, # the max radius of the arcs.
         "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*2,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
-        "pointsPerCircle":80 # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
+        "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
+        "extendArcDist":0.5 # extend Arcs for better bonding bewteen them, only end-piece affected(yet)
     }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -545,6 +546,8 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
     pts=[Point(p) for p in arcline.coords]
     #plt.plot([p.x for p in pts],[p.y for p in pts])
     #plt.show()      
+    extDist=kwargs.get("extendArcDist",0.5)
+    pExtend=move_toward_point(pts[-2],pts[-1],extDist)
     for idp,p in enumerate(pts):
         if idp==0:
             p1=p
@@ -559,6 +562,7 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
                 p1=p
         if idp==len(pts)-1:
             GCodeLines.append(retractGCode(retract=True))
+            GCodeLines.append(p2GCode(pExtend,E=extDist*eStepsPerMM))#insert Travel Move tangent to arc for better bonding beteenarcs
     return GCodeLines        
 
 
