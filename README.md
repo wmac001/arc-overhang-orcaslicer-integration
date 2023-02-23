@@ -53,7 +53,7 @@ If the python path contains any empty spaces, mask them as described here: https
 If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
 
 ## 5. Current Limitations
-1. All Usecases with multiple spots for arc generation are not testet yet and might contain bugs.
+1. Currently only 1 Arc Field per Layer. Work in Progress.
 2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
