@@ -53,17 +53,19 @@ If the python path contains any empty spaces, mask them as described here: https
 If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
 
 ## 5. Current Limitations
-1. The Arc-Generation is not hole-tolerant yet.
-2. All Usecases with multiple spots for arc generation are not testet yet and might contain bugs.
+1. All Usecases with multiple spots for arc generation are not testet yet and might contain bugs.
+2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
+4. Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
 
 ## 6. Suggested Print Settings
+Some PrintSettings will be checked and warned if "wrong".
 
 There are a few rules of thumb for actually printing this stuff: 
 
 The overhang print quality is greatly improved when the material solidifies as quickly as possible. Therefore:
-0. **Currently necessary PrusaSlicer Settings** :only 1 bottom layer, infill above arcs 100% hilbert curve, as many layers as you like, important to reduce warping. Use height modifier or modifier-mesh in the area. Thin layers also help.
+0. **Currently necessary PrusaSlicer Settings** :only 1 bottom layer, infill above arcs 70% hilbert curve or none , important to reduce warping. Use height modifier or modifier-mesh in the area. Thin layers also help.
   
 1. **Print as cold as possible.** I used 190 degrees for PLA. You can probably go even lower. If you require higher temp for the rest of the print, you could insert could insert some temp-change gcode before and after the arcs are printed. Might waste a lot of time though.
    
