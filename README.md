@@ -54,6 +54,7 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 
 ## 5. Current Limitations
 1. Currently deletes all Bridge Infills if an Arc in Layer. Fixing in Progress.
+2. If there are bridged, that shall not be Arc-filled, the conversion failes, try cutting them away (slice only the arc layers and inject into gcodefile) until there is a proper fix.
 2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
