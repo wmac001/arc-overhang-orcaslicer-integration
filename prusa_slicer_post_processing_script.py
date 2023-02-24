@@ -52,7 +52,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
     #add keys below, when you want to add a setting or overwrite an existing key from the config in the gcode. For some parameters the default settings form the gcode can be copied via gCodeSettingDict.get(key)
     AddManualSettingsDict={
         "allowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
-        "plotStart":False, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
+        "plotStart":True, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
         "plotArcsEachStep":False, #plot arcs for every filled polygon. use for debugging
         "plotArcsFinal":False, #plot arcs for every filled polygon, when completely filled. use for debugging
         "plotDetectedInfillPoly":False, # plot each detected overhang polygon, use for debugging.
@@ -65,12 +65,14 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
-        "ArcExtrusionMultiplier":1.35,
+        "ArcExtrusionMultiplier":2,#old 1,35
         "rMax":15, # the max radius of the arcs.
         "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*1.5,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "extendArcDist":0.5, # extend Arcs for better bonding bewteen them, only end-piece affected(yet), Unit:mm
-        "DistanceBetweenPointsOnStartLine":1
+        "DistanceBetweenPointsOnStartLine":1,
+        "MinArea":10*10,
+        "minDistFromPrevPerimeter":0.4
     }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -172,7 +174,7 @@ class Layer():
     def getRealFeatureStartPoint(self,idf:int)->Point:
         """ since GCode only stores destination of the move, the origin of the first move has to be included.""" 
         if idf<1:
-            raise ValueError("Tried to find start point of first feature: not implemented")
+            return None
         lines=self.features[idf-1][1]
         for line in reversed(lines):
             if "G1" in line:
@@ -186,7 +188,11 @@ class Layer():
             if "External" in ftype or ("Overhang" in ftype and extPerimeterIsStarted) or ("Overhang" in ftype and self.dontPerformPerimeterCheck): #two different types of perimeter to for a poly: external perimeter and overhang perimeter + option for manual errorhandling, when there is no feature "external"
                 if not extPerimeterIsStarted:
                     linesWithStart=[]
-                    linesWithStart.append(p2GCode(self.getRealFeatureStartPoint(idf)))
+                    pt=self.getRealFeatureStartPoint(idf)
+                    if type(pt)==type(Point):
+                        linesWithStart.append(p2GCode(pt))
+                    else:
+                        warnings.warn("Could not fetch real StartPoint, since it is the first feature in the layer.")
                 linesWithStart=linesWithStart+lines
                 extPerimeterIsStarted=True
             elif extPerimeterIsStarted or (idf==len(self.features)-1 and extPerimeterIsStarted):#finish the poly if other feature or end of featurelist
@@ -217,7 +223,8 @@ class Layer():
                 plot_geometry(poly,'b')
                 plot_geometry([ep for ep in self.extPerimeterPolys])  
                 plt.title("StartPointError, no intersection to prev layer")
-                plt.show()   
+                plt.show()  
+                raise ValueError("Could not generate LineString") 
                 return None
 
     def mergePolys(self):
@@ -246,7 +253,7 @@ class Layer():
                             print("travelstr found")
                         if not "E" in line and travelstr in line and splitAtTravel:
                             print("split code no pts before",len(pts))
-                            if len(pts)>0:
+                            if len(pts)>2:#make at least 1 ls
                                 parts.append(pts)
                                 pts=[]# update self.features... TODO
                         elif "E" in line:     #maybe fix error of included travel moves? 
@@ -665,6 +672,9 @@ if __name__=="__main__":
                     prevLayer.makeExternalPerimeter2Polys()
                     arcOverhangGCode=[]  
                     for poly in layer.validpolys:
+                        if poly.area<parameters.get("MinArea"):
+                            print("very small poly, skipping arc overhang generation")
+                            continue
                         #make parameters more readable
                         maxDistanceFromPerimeter=parameters.get("maxDistanceFromPerimeter") # how much 'bumpiness' you accept in the outline. Lower will generate more small arcs to follow the perimeter better (corners!). Good practice: 2 perimeters+ threshold of 2width=minimal exact touching (if rMin satisfied)
                         rMax=parameters.get("rMax",15)
@@ -677,6 +687,11 @@ if __name__=="__main__":
                         arcs4gcode=[]
                         #find StartPoint and StartLineString
                         startLineString=prevLayer.makeStartLineString(poly,parameters)
+                        if startLineString is None:
+                            plot_geometry(poly,'b')
+                            plot_geometry(prevLayer.extPerimeterPolys)
+                            plt.title("PrevLayer polys error")
+                            plt.show()
                         thresholdedpoly=poly#poly.buffer(parameters.get("extendIntoPerimeter",1)) # makes errors at the moment
                         boundaryWithOutStartLine=thresholdedpoly.boundary.difference(startLineString.buffer(1e-2))
                         startpt=getstartptOnLS(startLineString,parameters)
@@ -790,3 +805,4 @@ f.close()
 #os.startfile(path2GCode, 'open')
 print("Code executed successful")
 input("Push enter to close this window")
+
