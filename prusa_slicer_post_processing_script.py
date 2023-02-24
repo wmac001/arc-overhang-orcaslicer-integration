@@ -59,20 +59,22 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "CornerImportanceMultiplier":0.3, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
         "extendIntoPerimeter":0.5*gCodeSettingDict.get("perimeter_extrusion_width"), #overlap arc with perimeter to increase adhesion
         "ArcPrintSpeed":3*60, #Unit:mm/min
-        "ArcMinPrintSpeed":1*60,#Unit:mm/min
+        "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
         "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
-        "ArcExtrusionMultiplier":2,#old 1,35
+        "ArcExtrusionMultiplier":1.35,#old 1,35
         "rMax":15, # the max radius of the arcs.
         "maxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*1.5,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "extendArcDist":0.5, # extend Arcs for better bonding bewteen them, only end-piece affected(yet), Unit:mm
-        "DistanceBetweenPointsOnStartLine":1,
-        "MinArea":10*10,
-        "minDistFromPrevPerimeter":0.4
+        "DistanceBetweenPointsOnStartLine":0.1,#used for redestribution, if start fails.
+        "minArea":10*10,
+        "minBridgeLength":10,#Unit:mm
+        "minStartArcs":2, # how many arcs shall be generated in first step
+        "safetyBreak_MaxArcNumber":2000 #max Number of Arc Start Points. prevents While loop form running for ever.
     }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -142,8 +144,9 @@ def makePolygonFromGCode(lines:list)->Polygon:
 
 ############ Classes #####        
 class Layer():
-    def __init__(self,lines=[],kwargs={})->None:
+    def __init__(self,lines:list=[],kwargs:dict={},layernumber:int=-1)->None:
         self.lines=lines
+        self.layernumber=layernumber
         self.z=kwargs.get("z",None)
         self.polys=[]
         self.validpolys=[]
@@ -185,29 +188,52 @@ class Layer():
         for idf,fe in enumerate(self.features):
             ftype=fe[0]
             lines=fe[1]
+            
             if "External" in ftype or ("Overhang" in ftype and extPerimeterIsStarted) or ("Overhang" in ftype and self.dontPerformPerimeterCheck): #two different types of perimeter to for a poly: external perimeter and overhang perimeter + option for manual errorhandling, when there is no feature "external"
                 if not extPerimeterIsStarted:
                     linesWithStart=[]
-                    pt=self.getRealFeatureStartPoint(idf)
-                    if type(pt)==type(Point):
-                        linesWithStart.append(p2GCode(pt))
-                    else:
-                        warnings.warn("Could not fetch real StartPoint, since it is the first feature in the layer.")
+                    if idf>1:
+                        pt=self.getRealFeatureStartPoint(idf)
+                        if type(pt)==type(Point):
+                            linesWithStart.append(p2GCode(pt))
+                        else:
+                            warnings.warn(f"Layer: {self.layernumber}: Could not fetch real StartPoint.")
                 linesWithStart=linesWithStart+lines
                 extPerimeterIsStarted=True
-            elif extPerimeterIsStarted or (idf==len(self.features)-1 and extPerimeterIsStarted):#finish the poly if other feature or end of featurelist
+            if (idf==len(self.features)-1 and extPerimeterIsStarted) or (extPerimeterIsStarted and not ("External" in ftype or "Overhang" in ftype)) :#finish the poly if end of featurelist or different feature
                 poly=makePolygonFromGCode(linesWithStart)
                 if poly:
                     self.extPerimeterPolys.append(poly) 
                 extPerimeterIsStarted=False   
-    def makeStartLineString(self,poly:Polygon,kwargs={})->LineString:
+    def makeStartLineString(self,poly:Polygon,kwargs:dict={})->tuple[LineString,LineString] | tuple[None,None]:
         if not self.extPerimeterPolys:
             self.makeExternalPerimeter2Polys()
+        if len(self.extPerimeterPolys)<1:
+            warnings.warn(f"Layer: {self.layernumber}: No ExternalPerimeterPolys found in prev Layer")
+            return None,None   
         for ep in self.extPerimeterPolys:
             ep=ep.buffer(1e-2)# avoid self intersection error
+            plt.title("External Perimeter")
+            plot_geometry(ep,'c')
+            plt.show()
             if ep.intersects(poly):
                 startarea=ep.intersection(poly)
-                startLineString=startarea.boundary.difference(ep.boundary.buffer(kwargs.get("minDistFromPrevPerimeter",1.5)))
+                plt.title("startarea")
+                plot_geometry(startarea,'g',filled=True)
+                plot_geometry(poly)
+                plt.show()
+                startLineString=startarea.boundary.intersection(poly.boundary.buffer(1e-2))
+                if startLineString is None:#unlikely to happen, needed?
+                    plt.title("StartLineString is None")
+                    plot_geometry(poly,'b')
+                    plot_geometry(startarea)
+                    plot_geometry([ep for ep in self.extPerimeterPolys])  
+                    plt.legend("currentLayerPoly","StartArea(Union)","prevLayerPoly")
+                    plt.show()  
+                    warnings.warn(f"Layer: {self.layernumber}: No Intersection in Boundary,Poly+ExternalPoly")
+                    return None,None
+
+                boundaryLineString=poly.boundary.difference(startarea.boundary.buffer(1e-2))
                 print("STARTLINESTRING TYPE:",startLineString.geom_type)  
                 if kwargs.get("plotStart"):
                     print("Geom-Type:",poly.geom_type)
@@ -217,15 +243,15 @@ class Layer():
                     plt.title("Start-Geometry")
                     plt.legend(["Poly4ArcOverhang","External Perimeter prev Layer","StartLine for Arc Generation"])
                     plt.show()  
-                return startLineString #redistribute_vertices(startLineString, kwargs.get("DistanceBetweenPointsOnStartLine",1))
+                return startLineString,boundaryLineString
             else:
-                print("no intersection")
+                plt.title("no intersection with prev Layer Boundary")
                 plot_geometry(poly,'b')
                 plot_geometry([ep for ep in self.extPerimeterPolys])  
-                plt.title("StartPointError, no intersection to prev layer")
+                plt.legend("currentLayerPoly","prevLayerPoly")
                 plt.show()  
-                raise ValueError("Could not generate LineString") 
-                return None
+                warnings.warn(f"Layer: {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
+                return None,None
 
     def mergePolys(self):
         mergedPolys = unary_union(self.validpolys)
@@ -274,7 +300,7 @@ class Layer():
         parts=self.spotFeaturePoints("Bridge infill",splitAtTravel=True)
         for idf,infillpts in enumerate(parts):
             self.binfills.append(BridgeInfill(infillpts))
-    def makePolysFromBridgeInfill(self,extend=1)->None:
+    def makePolysFromBridgeInfill(self,extend=0)->None:
         for bInfill in self.binfills:
             infillPts=bInfill.pts
             infillLS=LineString(infillPts)
@@ -297,15 +323,20 @@ class Layer():
         if len(overhangs)>0:
             allowedSpacePolygon=self.parameters.get("allowedSpaceForArcs")
             if not allowedSpacePolygon:
-                raise ValueError("no allowed space Polygon provided to layer obj")
+                raise ValueError(f"Layer: {self.layernumber}: no allowed space Polygon provided to layer obj")
             for idp,poly in enumerate(self.polys):
-                if poly.is_valid:
-                    if allowedSpacePolygon.contains(poly):                
-                        for ohp in overhangs:
-                            if poly.distance(ohp)<minDistForValidation:
-                                self.validpolys.append(poly)
-                                self.deleteTheseInfills.append(idp)
-                                break
+                if not poly.is_valid:
+                    continue
+                if not allowedSpacePolygon.contains(poly):
+                    continue
+                if poly.area<self.parameters.get("minArea"):
+                    continue               
+                for ohp in overhangs:
+                    if poly.distance(ohp)<minDistForValidation:
+                        if ohp.length>self.parameters.get("minBridgeLength"):
+                            self.validpolys.append(poly)
+                            self.deleteTheseInfills.append(idp)
+                            break
 
     
     def prepareDeletion(self)->None:
@@ -333,7 +364,7 @@ class Layer():
 
                             
 class Arc():
-    def __init__(self,center:Point,r:float,kwargs={}) -> None:
+    def __init__(self,center:Point,r:float,kwargs:dict={}) -> None:
         self.center=center
         self.r=r
         self.pointsPerCircle=kwargs.get("pointsPerCircle",80)
@@ -354,7 +385,7 @@ class Arc():
             self.arcline=merged
             return merged                             
         elif merged.geom_type=="MultiLineString":
-            warnings.warn("Boundary was not continous, only longest part passed")
+            warnings.warn(f"Arc: C:{self.center},r:{self.r}, Boundary was not continous, only longest part passed")
             length=-1
             for ls in merged.geoms:
                 if ls.length>length:
@@ -380,9 +411,23 @@ class BridgeInfill():
 def midpoint(p1:Point, p2:Point):
     return Point((p1.x + p2.x)/2, (p1.y + p2.y)/2)
 
-def getstartptOnLS(ls:LineString,kwargs={})->Point:
-    if ls.geom_type=="MultiLineString":
-        ls=ls.geoms[0]#pick the first
+def getStartPtOnLS(ls:LineString,kwargs:dict={},choseRandom:bool=False)->Point:
+    if ls.geom_type=="MultiLineString" or ls.geom_type=="GeometryCollection":
+        lengths=[]
+        for lss in ls.geoms:
+            if lss.geom_type=="LineString":
+                lengths.append(lss.length)
+            else:
+                print("Startline Item bizzare Type of geometry:",lss.geom_type)    
+                lengths.append(0)      
+        lsidx=np.argmax(lengths)
+        if not lsidx.is_integer():
+            try:
+                lsidx=lsidx[0]#if multiple max values: take first occurence
+            except:
+                print("Exception used for lsidx, should be int:", lsidx)
+                lsidx=0
+        ls=ls.geoms[lsidx]
     if len(ls.coords)<2:
         raise ValueError("Start LineString with <2 Points invalid")
     if len(ls.coords)==2:
@@ -390,6 +435,8 @@ def getstartptOnLS(ls:LineString,kwargs={})->Point:
     scores=[]
     curLength=0
     pts=[Point(p) for p in ls.coords]
+    if choseRandom:
+        return random.choice(pts)
     coords=[np.array(p) for p in ls.coords]
     for idp,p in enumerate(pts):
         if idp==0 or idp==len(pts)-1:
@@ -489,8 +536,7 @@ def redistribute_vertices(geom, distance):
             [geom.interpolate(float(n) / num_vert, normalized=True)
              for n in range(num_vert + 1)])
     elif geom.geom_type == 'MultiLineString':
-        parts = [redistribute_vertices(part, distance)
-                 for part in geom]
+        parts = [redistribute_vertices(part, distance) for part in geom.geoms]
         return type(geom)([p for p in parts if not p.is_empty])
     else:
         raise ValueError('unhandled geometry %s', (geom.geom_type,))
@@ -545,7 +591,7 @@ def plot_geometry(geometry, color='black', linewidth=1,**kwargs):
         for line in geometry.geoms:
             x, y = line.xy
             plt.plot(x, y, color=color, linewidth=linewidth)
-    elif geometry.geom_type == 'MultiPolygon':
+    elif geometry.geom_type == 'MultiPolygon' or geometry.geom_type == "GeometryCollection":
         for polygon in geometry.geoms:
             plot_geometry(polygon,color=color,linewidth=linewidth,kwargs=kwargs)
     else:
@@ -655,7 +701,7 @@ if __name__=="__main__":
         gCodeFileStream.close()
         print("layers:",len(layers))
         for idl,layerlines in enumerate(layers):
-            layer=Layer(layerlines,parameters)
+            layer=Layer(layerlines,parameters,idl)
             layerobjs.append(layer)   
         for idl,layer in enumerate(layerobjs):    
             if idl<1:
@@ -663,7 +709,7 @@ if __name__=="__main__":
             else:
                 layer.extract_features()
                 layer.spotBridgeInfill()
-                layer.makePolysFromBridgeInfill()
+                layer.makePolysFromBridgeInfill(extend=parameters.get("extendIntoPerimeter",0))
                 layer.verifyinfillpolys()    
                 if layer.validpolys:
                     print(f"overhang found layer {idl}:",len(layer.polys))
@@ -672,45 +718,57 @@ if __name__=="__main__":
                     prevLayer.makeExternalPerimeter2Polys()
                     arcOverhangGCode=[]  
                     for poly in layer.validpolys:
-                        if poly.area<parameters.get("MinArea"):
-                            print("very small poly, skipping arc overhang generation")
-                            continue
                         #make parameters more readable
                         maxDistanceFromPerimeter=parameters.get("maxDistanceFromPerimeter") # how much 'bumpiness' you accept in the outline. Lower will generate more small arcs to follow the perimeter better (corners!). Good practice: 2 perimeters+ threshold of 2width=minimal exact touching (if rMin satisfied)
                         rMax=parameters.get("rMax",15)
                         pointsPerCircle=parameters.get("pointsPerCircle",80)
                         arcWidth=parameters.get("ArcWidth")
                         rMin=parameters.get("ArcCenterOffset")+arcWidth/1.5
+                        rMinStart=parameters.get("nozzle_diameter")
                         #initialize
                         finalarcs=[]
                         arcs=[]
                         arcs4gcode=[]
                         #find StartPoint and StartLineString
-                        startLineString=prevLayer.makeStartLineString(poly,parameters)
+                        startLineString,boundaryWithOutStartLine=prevLayer.makeStartLineString(poly,parameters)
                         if startLineString is None:
-                            plot_geometry(poly,'b')
-                            plot_geometry(prevLayer.extPerimeterPolys)
-                            plt.title("PrevLayer polys error")
-                            plt.show()
-                        thresholdedpoly=poly#poly.buffer(parameters.get("extendIntoPerimeter",1)) # makes errors at the moment
-                        boundaryWithOutStartLine=thresholdedpoly.boundary.difference(startLineString.buffer(1e-2))
-                        startpt=getstartptOnLS(startLineString,parameters)
-                        remainingSpace=thresholdedpoly
+                            warnings.warn("Skipping Polygon because to StartLine Found")
+                            continue
+                        startpt=getStartPtOnLS(startLineString,parameters)
+                        remainingSpace=poly
                         #plot_geometry(thresholdedpoly)
                         #plot_geometry(startLineString,'m')
                         #plot_geometry(startpt,'r')
                         #plt.show()
                         #first step in Arc Generation
-                        concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
+                        
+                        concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
                         arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                         #print(f"number of concentric arcs generated:",len(concentricArcs))
-                        if len(concentricArcs)<2:
-                            # get rid of pts in tight corners...
-                            startpt=getstartptOnLS(redistribute_vertices(startLineString,0.1),parameters)
-                            concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
+                        if len(concentricArcs)<parameters.get("minStartArcs"): 
+                            #possibly bad chosen startpt, errorhandling:
+                            startpt=getStartPtOnLS(redistribute_vertices(startLineString,0.1),parameters)
+                            concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
                             arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
-                            if len(concentricArcs)<2:
-                                raise ValueError("Initialization Error: no concentric Arc could be generated") #ggf try at random
+                            if len(concentricArcs)<parameters.get("minStartArcs"):#still insuff start: try random
+                                print(f"Layer {idl}: Using random Startpoint")
+                                for idr in range(10):
+                                    startpt=getStartPtOnLS(startLineString,parameters,choseRandom=True)
+                                    concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
+                                    arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
+                                    if len(concentricArcs)>=parameters.get("minStartArcs"):
+                                        break
+                                if len(concentricArcs)<parameters.get("minStartArcs"):    
+                                    for idr in range(10):
+                                        startpt=getStartPtOnLS(redistribute_vertices(startLineString,0.1),parameters,choseRandom=True)
+                                        concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
+                                        arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]    
+                                        if len(concentricArcs)>=parameters.get("minStartArcs"):
+                                            break              
+                                if len(concentricArcs)<parameters.get("minStartArcs"):        
+                                    warnings.warn("Initialization Error: no concentric Arc could be generated at startpoints, moving on")
+                                    continue
+
                         finalarcs.append(concentricArcs[-1]) 
                         for arc in concentricArcs: 
                             remainingSpace=remainingSpace.difference(arc.poly.buffer(1e-2))
@@ -718,22 +776,21 @@ if __name__=="__main__":
                         for arcboundary in arcBoundarys:    
                             arcs4gcode.append(arcboundary)
   
-                        
                         #start bfs (breadth first search algorithm) to fill the remainingspace
                         idx=0
                         safetyBreak=0
                         while idx<len(finalarcs):
-                            print("while executed:",idx, len(finalarcs))
+                            print("\rwhile executed:",idx, len(finalarcs))
                             curArc=finalarcs[idx]
                             if curArc.poly.geom_type=="MultiPolygon":
-                                farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly.geoms[0],thresholdedpoly,remainingSpace)
+                                farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly.geoms[0],poly,remainingSpace)
                             else:
-                                farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly,thresholdedpoly,remainingSpace)
+                                farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly,poly,remainingSpace)
                             if not farthestPointOnArc or longestDistance<maxDistanceFromPerimeter:#no more pts on arc
                                 idx+=1 #go to next arc
                                 continue
                             startpt=move_toward_point(farthestPointOnArc,curArc.center,parameters.get("ArcCenterOffset",2))
-                            concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,thresholdedpoly.boundary,remainingSpace,parameters)
+                            concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,poly.boundary,remainingSpace,parameters)
                             arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                             #print(f"number of concentric arcs generated:",len(concentricArcs))
                             if len(concentricArcs)>0:
@@ -746,7 +803,7 @@ if __name__=="__main__":
                             else:
                                 idx+=1 # no possible concentric arcs found= arc complete, proceed to next
                             safetyBreak+=1
-                            if safetyBreak>2000:
+                            if safetyBreak>parameters.get("safetyBreak_MaxArcNumber",2000):
                                 break
                             if parameters.get("plotArcsEachStep"):
                                 plt.title(f"Iteration {idx}, Total No Start Points: {len(finalarcs)}, Total No Arcs: {len(arcs)}")
@@ -775,7 +832,7 @@ if __name__=="__main__":
                             arcGCode=arc2GCode(arcline=arc,eStepsPerMM=eStepsPerMM,arcidx=ida)
                             arcOverhangGCode.append(arcGCode)
                     #all polys finished       
-                    modifiedlayer=Layer([],parameters) # copy the other infos if needed: future to do
+                    modifiedlayer=Layer([],parameters,idl) # copy the other infos if needed: future to do
                     isInjected=False
                     layer.prepareDeletion()
                     #print("FEATURES:",[(f[0],f[2]) for f in layer.features])
