@@ -57,13 +57,13 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "plotArcsFinal":False, #plot arcs for every filled polygon, when completely filled. use for debugging
         "plotDetectedInfillPoly":False, # plot each detected overhang polygon, use for debugging.
         "CornerImportanceMultiplier":0.3, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
-        "extendIntoPerimeter":0.5*gCodeSettingDict.get("perimeter_extrusion_width"), #overlap arc with perimeter to increase adhesion
+        "extendIntoPerimeter":1.0*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth, is used to "melt" brdigeinfill into conti. polygon. also overlap arc with perimeter to increase adhesion, adds to the slicer defined overlap!
         "ArcPrintSpeed":3*60, #Unit:mm/min
         "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
         "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
-        "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
+        "ArcCenterOffset":1, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
         "ArcExtrusionMultiplier":1.35,#old 1,35
         "rMax":15, # the max radius of the arcs.
@@ -71,8 +71,8 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "extendArcDist":0.5, # extend Arcs for better bonding bewteen them, only end-piece affected(yet), Unit:mm
         "DistanceBetweenPointsOnStartLine":0.1,#used for redestribution, if start fails.
-        "minArea":10*10,
-        "minBridgeLength":10,#Unit:mm
+        "minArea":10*10,#Unit:mm2
+        "minBridgeLength":5,#Unit:mm
         "minStartArcs":2, # how many arcs shall be generated in first step
         "safetyBreak_MaxArcNumber":2000 #max Number of Arc Start Points. prevents While loop form running for ever.
     }
@@ -254,12 +254,12 @@ class Layer():
                 return None,None
 
     def mergePolys(self):
-        mergedPolys = unary_union(self.validpolys)
-        print("Merged Geometry Type:",mergedPolys.geom_type)
+        mergedPolys = unary_union(self.polys)
+        #print("Merged Geometry Type:",mergedPolys.geom_type)
         if mergedPolys.geom_type=="Polygon":
-            self.validpolys=[mergedPolys]
+            self.polys=[mergedPolys]
         elif mergedPolys.geom_type=="MultiPolygon" or mergedPolys.geom_type=="GeometryCollection":
-            self.validpolys=[poly for poly in mergedPolys.geoms] 
+            self.polys=[poly for poly in mergedPolys.geoms] 
     def spotFeaturePoints(self,featureName:str,splitAtWipe=False,includeRealStartPt=False, splitAtTravel=False)->list:
         parts=[]
         for idf,fe in enumerate(self.features):
@@ -275,11 +275,9 @@ class Layer():
                     if sp:pts.append(sp)       
                 for line in lines:
                     if "G1" in line and (not isWipeMove):
-                        if travelstr in line:
-                            print("travelstr found")
-                        if not "E" in line and travelstr in line and splitAtTravel:
-                            print("split code no pts before",len(pts))
-                            if len(pts)>2:#make at least 1 ls
+                        if (not "E" in line) and travelstr in line and splitAtTravel:
+                            print(f"Layer {self.layernumber}: try to split feature. No. of pts before:",len(pts))
+                            if len(pts)>=2:#make at least 1 ls
                                 parts.append(pts)
                                 pts=[]# update self.features... TODO
                         elif "E" in line:     #maybe fix error of included travel moves? 
@@ -293,14 +291,14 @@ class Layer():
                             pts=[]
                     if 'WIPE_END' in line:
                         isWipeMove=False                  
-                if len(pts)>0:#fetch last one
+                if len(pts)>1:#fetch last one
                     parts.append(pts)           
         return parts                     
     def spotBridgeInfill(self)->None:
         parts=self.spotFeaturePoints("Bridge infill",splitAtTravel=True)
         for idf,infillpts in enumerate(parts):
             self.binfills.append(BridgeInfill(infillpts))
-    def makePolysFromBridgeInfill(self,extend=0)->None:
+    def makePolysFromBridgeInfill(self,extend:float=1)->None:
         for bInfill in self.binfills:
             infillPts=bInfill.pts
             infillLS=LineString(infillPts)
@@ -709,11 +707,11 @@ if __name__=="__main__":
             else:
                 layer.extract_features()
                 layer.spotBridgeInfill()
-                layer.makePolysFromBridgeInfill(extend=parameters.get("extendIntoPerimeter",0))
+                layer.makePolysFromBridgeInfill(extend=parameters.get("extendIntoPerimeter",1))
+                layer.mergePolys()
                 layer.verifyinfillpolys()    
                 if layer.validpolys:
                     print(f"overhang found layer {idl}:",len(layer.polys))
-                    layer.mergePolys()
                     prevLayer=layerobjs[idl-1]
                     prevLayer.makeExternalPerimeter2Polys()
                     arcOverhangGCode=[]  
