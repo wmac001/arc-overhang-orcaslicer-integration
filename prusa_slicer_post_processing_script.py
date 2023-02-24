@@ -213,15 +213,9 @@ class Layer():
             return None,None   
         for ep in self.extPerimeterPolys:
             ep=ep.buffer(1e-2)# avoid self intersection error
-            plt.title("External Perimeter")
-            plot_geometry(ep,'c')
-            plt.show()
+
             if ep.intersects(poly):
                 startarea=ep.intersection(poly)
-                plt.title("startarea")
-                plot_geometry(startarea,'g',filled=True)
-                plot_geometry(poly)
-                plt.show()
                 startLineString=startarea.boundary.intersection(poly.boundary.buffer(1e-2))
                 if startLineString is None:#unlikely to happen, needed?
                     plt.title("StartLineString is None")
@@ -229,6 +223,7 @@ class Layer():
                     plot_geometry(startarea)
                     plot_geometry([ep for ep in self.extPerimeterPolys])  
                     plt.legend("currentLayerPoly","StartArea(Union)","prevLayerPoly")
+                    plt.axis('square')
                     plt.show()  
                     warnings.warn(f"Layer: {self.layernumber}: No Intersection in Boundary,Poly+ExternalPoly")
                     return None,None
@@ -242,6 +237,7 @@ class Layer():
                     plot_geometry(startLineString,color="m")
                     plt.title("Start-Geometry")
                     plt.legend(["Poly4ArcOverhang","External Perimeter prev Layer","StartLine for Arc Generation"])
+                    plt.axis('square')
                     plt.show()  
                 return startLineString,boundaryLineString
             else:
@@ -249,6 +245,7 @@ class Layer():
                 plot_geometry(poly,'b')
                 plot_geometry([ep for ep in self.extPerimeterPolys])  
                 plt.legend("currentLayerPoly","prevLayerPoly")
+                plt.axis('square')
                 plt.show()  
                 warnings.warn(f"Layer: {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
                 return None,None
@@ -308,6 +305,7 @@ class Layer():
             if self.parameters.get("plotDetectedInfillPoly"):
                 plot_geometry(infillPoly)
                 plot_geometry(infillLS,"g")
+                plt.axis('square')
                 plt.show()
     def getOverhangPerimeterLineStrings(self):
         parts=self.spotFeaturePoints("Overhang perimeter",includeRealStartPt=True)
@@ -496,6 +494,7 @@ def get_farthest_point(arc:Polygon, base_poly:Polygon, remaining_empty_space:Pol
         plt.title("Function get_farthest_point went wrong")
         plot_geometry(base_poly,"b")
         plot_geometry(arc,"r")
+        plt.axis('square')
         plt.show()
     # For every point in the arc, find out which point is farthest away from the base polygon
     for p in list(arc_coords):
@@ -662,6 +661,7 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
     p1=None
     pts=[Point(p) for p in arcline.coords]
     #plt.plot([p.x for p in pts],[p.y for p in pts])
+    #plt.axis('square')
     #plt.show()      
     extDist=kwargs.get("extendArcDist",0.5)
     pExtend=move_toward_point(pts[-2],pts[-1],extDist)
@@ -737,6 +737,7 @@ if __name__=="__main__":
                         #plot_geometry(thresholdedpoly)
                         #plot_geometry(startLineString,'m')
                         #plot_geometry(startpt,'r')
+                        #plt.axis('square')
                         #plt.show()
                         #first step in Arc Generation
                         
@@ -825,6 +826,7 @@ if __name__=="__main__":
                         #for arc in arcs4gcode:
                         #    plot_geometry(arc)
                         #    plot_geometry(Point(arc.coords[0]))
+                        #plt.axis('square')
                         #plt.show()
                         for ida,arc in enumerate(arcs4gcode):    
                             arcGCode=arc2GCode(arcline=arc,eStepsPerMM=eStepsPerMM,arcidx=ida)
