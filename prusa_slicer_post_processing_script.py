@@ -65,7 +65,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "RMax":15, # the max radius of the arcs.
 
         #advanced Settings, you should not need to touch these.
-        "ArcExtrusionMultiplier":1.35,#old 1,35
+        "ArcExtrusionMultiplier":1.5,#old 1,35
         "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
         "CornerImportanceMultiplier":0.3, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
@@ -315,7 +315,7 @@ def splitGCodeIntoLayers(gcode:list)->list:
     print("last read linenumber:",linenumber)            
     return gcode_list
             
-def getPtfromCmd(line:str)->Point:
+def getPtfromCmd(line:str)->Point | None:
     x=None
     y=None
     line=line.split(";")[0]
@@ -546,19 +546,26 @@ class Layer():
 
     
     def prepareDeletion(self)->None:
-        #for idp,poly in  enumerate(self.polys):
-            #for validpoly in self.validpolys:
-                #if poly.intersects(validpoly) or poly.equals(validpoly):
-                    #self.deleteTheseInfills[self.associatedIDs[idp]]
-            #if not len(self.deleteTheseInfills)>0:
-                #print("no infills to delete")        
-            for idf,fe in enumerate(self.features):
-                if "Bridge" in self.features[idf][0]:
-                    start=self.features[idf][2]
+        for idf,fe in enumerate(self.features):
+            ftype=fe[0]
+            lines=fe[1]
+            start=fe[2]
+            deleteThis=False
+            if "Bridge" in ftype:
+                for poly in self.validpolys:
+                    for line in lines:
+                        p=getPtfromCmd(line)
+                        if p:
+                            if poly.contains(p):
+                                deleteThis=True
+                                break
+                        if deleteThis:
+                            break 
+                if deleteThis:           
                     if idf<len(self.features)-1:
                         end=self.features[idf+1][2]
                     else:
-                        end=len(self.lines)    
+                        end=len(self.lines) 
                     self.deletelines.append([start,end])
     def exportThisLine(self,linenumber:int)->bool:
         export=True
@@ -591,7 +598,7 @@ class Arc():
             self.arcline=merged
             return merged                             
         elif merged.geom_type=="MultiLineString":
-            warnings.warn(f"Arc: C:{self.center},r:{self.r}, Boundary was not continous, only longest part passed")
+            warnings.warn(f"Arc: C:{self.center:.2f},r:{self.r:.2f}, Boundary was not continous, only longest part passed")
             length=-1
             for ls in merged.geoms:
                 if ls.length>length:
