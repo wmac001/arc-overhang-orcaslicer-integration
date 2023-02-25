@@ -95,7 +95,9 @@ def main(gCodeFileStream,path2GCode)->None:
     gCodeSettingDict=readSettingsFromGCode2dict(gCodeLines)
     parameters=makeFullSettingDict(gCodeSettingDict)
     if not checkforNecesarrySettings(gCodeSettingDict):
-        raise ValueError("Incompatible Settings used!")
+        warnings.warn("Incompatible Settings used!")
+        input("Can not run script, gcode unmodified. Press enter to close.")
+        raise ValueError("Incompatible Settings used!") 
     layerobjs=[]
     if gCodeFileStream:
         layers=splitGCodeIntoLayers(gCodeLines)
@@ -299,6 +301,7 @@ def getFileStreamAndPath(read=True):
         return f,filepath
     except IOError:
         print("File not found")
+        input("File not found.Press enter.")
         sys.exit(1)
         
 def splitGCodeIntoLayers(gcode:list)->list:
@@ -529,6 +532,7 @@ class Layer():
         if len(overhangs)>0:
             allowedSpacePolygon=self.parameters.get("AllowedSpaceForArcs")
             if not allowedSpacePolygon:
+                input(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj, unable to run script. Press Enter.")
                 raise ValueError(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj")
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
@@ -606,6 +610,7 @@ class Arc():
                     length=ls.length
             return self.arcline
         else:
+            input("ArcBoundary merging Error.Unable to run script. Press Enter.")
             raise ValueError("ArcBoundary merging Error")
     def generateConcentricArc(self,startpt:Point,remainingSpace:Polygon|MultiPolygon)->Polygon:
         circ=create_circle(startpt,self.r,self.pointsPerCircle)
@@ -643,6 +648,8 @@ def getStartPtOnLS(ls:LineString,kwargs:dict={},choseRandom:bool=False)->Point:
                 lsidx=0
         ls=ls.geoms[lsidx]
     if len(ls.coords)<2:
+        warnings.warn("Start LineString with <2 Points invalid")
+        input("Can not run script, gcode unmodified. Press Enter")
         raise ValueError("Start LineString with <2 Points invalid")
     if len(ls.coords)==2:
         return midpoint(Point(ls.coords[0]),Point(ls.coords[1]))
@@ -742,7 +749,7 @@ def move_toward_point(start_point:Point, target_point:Point, distance:float)->Po
     # Move the point in the direction of the target by the set distance
     return Point(start_point.x + dx*distance, start_point.y + dy*distance)        
 
-def redistribute_vertices(geom, distance):
+def redistribute_vertices(geom:LineString|MultiLineString, distance:float)->LineString|MultiLineString:
     if geom.geom_type == 'LineString':
         num_vert = int(round(geom.length / distance))
         if num_vert == 0:
@@ -754,7 +761,8 @@ def redistribute_vertices(geom, distance):
         parts = [redistribute_vertices(part, distance) for part in geom.geoms]
         return type(geom)([p for p in parts if not p.is_empty])
     else:
-        raise ValueError('unhandled geometry %s', (geom.geom_type,))
+        warnings.warn('unhandled geometry %s', (geom.geom_type,))
+        return geom
     
 def generateMultipleConcentricArcs(startpt:Point,rMin:float,rMax:float, boundaryLineString:LineString,remainingSpace:Polygon|MultiPolygon,kwargs={})->list:
     arcs=[]
