@@ -1,10 +1,13 @@
 # Arc Overhang
 ![fast-and-easy-supportless](examples/ExampleCatchImage.png)
 
-A 3D printer toolpath generation algorithm that lets you print 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
+A 3D printer toolpath generation algorithm that lets you print up to 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
 
-**Now it is easy and convinient to use by to integrate the functionality into PrusaSlicer as a post-processing script.**
+**Now it is easy and convinient to use by integrating the functionality into PrusaSlicer as a post-processing script.**
 
+Steven and I hope that some day this feature gets integrated into slicing software. But until then you can use this script to get the added functionalitiy today!
+
+![possible usecases](examples/UseCasesGallery.png)
 ## 0. Videos
 
 - Arc Overhang Initial Video: https://youtu.be/fjGeBYOPmHA
@@ -44,7 +47,7 @@ and the path of the gcode file. Will overwrite the file.
 #### Option B) use it as a automatic post-processing script in PrusaSlicer
 1. open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
 2. In that window enter: full-path-to-your-python-exe full-path-to-this-script-incl-filename
-3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in the window wont change. 
+3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in PrusaSlicer wont change. 
 4. Open the finished gcode file to see the results.
 
 Notes to nail it first try:
@@ -57,12 +60,15 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
-4. Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
+4. when next layers are added: Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
+5. no wiping or z-hop during travel moves
 
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
 
-Important Settings in the Script are:
+Reduce Warping:
+Recommended in the Arc-Overhang area: only 1 bottom layer, infill: less is better, avoid straight lines, e.g. hilbert-curve.
+###Important Settings in the Script are:
 
 a) **"ArcCenterOffset":** The surfacequality is imporved by Offsetting the arc center, because the smallest r is larger->more time to cool. Set to 0 to get into delicate areas.
 
@@ -80,6 +86,7 @@ The overhang print quality is greatly improved when the material solidifies as q
    
 2. **Maximize cooling.** Set your fans to full blast. I don't think this technique will work too well with ABS and materials that can't use cooling fans, but I haven't tested it.
 3. **Print slowly.** I use around 2 mm/s. Even that is too fast sometimes for the really tiny arcs, since they have almost no time to cool before the next layer begins.
+
 
 ## 7. Room for Improvement
 We would be happy if you contribute!
@@ -101,3 +108,25 @@ If you want to try the prints without installing, Steven and I added some test p
 
 ## 10. Print it! 
 If you get a successful print using this algorithm, I'd (and I am sure Steven to) love to hear about it.
+
+## 11. How the Post-Procssing-Script works
+The script analyses the given gcode-file and splits it into layers. For every layer the informations are saved as an object (Class:Layer).
+Than it searches for "Bridge Infill" tag in the gcode, kindly provided by PrusaSlicer.
+
+The process will be shown with this simple example geometry(left). It has Bridge Infill at 2 areas in one layer, the right one is the overhang we want to replace.(right)
+![Explain Geometry](examples/Algorithm_explained/Algorithm_Geometry.png)
+
+The real work is done by the shapely-Library. The Algorithm extracts the gcode and converts it into a shapely line (plot:green). By thickening the line we get one continous Polygon(plot black):
+![infill to poly](examples/Algorithm_explained/Infill2Polygon.png)
+
+The Polygon is verified by several steps, including touching some overhang perimeter.
+To find a start point the external perimeter of the previous layer is extracted and the intersection area with our Polygon calculated.
+The commom boundary of the intersection area and the Polygon will be the startline (magenta) for the arc generation.
+![Start Geometry](examples/Algorithm_explained/Start_Geometry_Plot.png)
+
+For each step concentric arcs are generated, until they hit a boundary or rMax. The Farthest Point on the pervious arc will be the next startpoint.
+![Algorithm Animation](examples/Algorithm_explained/Algorithm_Step.gif)
+
+The process is repeated until all points on the arcs are close enough to the boundary or overprinted by other arcs.
+Finally the gcode file will be rewritten. All infos are copied and the Arcs are injected at the beginning of the layer. the replaced bridge infill will be excluded:
+![Result](examples/Algorithm_explained/Algorithm_3_Result.png)
