@@ -1,6 +1,7 @@
 # Arc Overhang
-![fast-and-easy-supportless](examples/ExampleCatchImage.png)
-
+<p align="center">
+<img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/ExampleCatchImage.png" width=600>
+  </p>
 A 3D printer toolpath generation algorithm that lets you print up to 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
 
 **Now it is easy and convinient to use by integrating the functionality into PrusaSlicer as a post-processing script.**
@@ -22,9 +23,6 @@ This is a basic visualisation how the algorithm works:
 ## 1. Brief Explanation (from Steven McColloch):
 
 1. You can print 90° overhangs by wrapping filament around itself in concentric **arcs**. You may have seen the [fullcontrol.xyz overhang challenge](https://fullcontrol.xyz/#/models/b70938). This uses the exact same principle.
-
-![fullcontrol overhang challenge](examples/fullcontrol_overhang_challenge.jpg)
-
 Here's what this effect looks like while printing:  
 
 ![printing demo](examples/printing_demo.gif)
@@ -62,13 +60,14 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 =>if precision needed make test prints to counter this effect.
 4. when next layers are added: Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
 5. no wiping or z-hop during travel moves
+6. remaining print time shown during printing is wrong. The real printtime can be seen when opening the finished file in GcodeViewer.
 
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
 
 Reduce Warping:
 Recommended in the Arc-Overhang area: only 1 bottom layer, infill: less is better, avoid straight lines, e.g. hilbert-curve.
-###Important Settings in the Script are:
+### Important Settings in the Script are:
 
 a) **"ArcCenterOffset":** The surfacequality is imporved by Offsetting the arc center, because the smallest r is larger->more time to cool. Set to 0 to get into delicate areas.
 
@@ -90,12 +89,11 @@ The overhang print quality is greatly improved when the material solidifies as q
 
 ## 7. Room for Improvement
 We would be happy if you contribute!
-Currently the biggest issue is severe warping, when the infill layers above are printed. Suggestions?
+Currently the biggest issue is severe warping, when the infill layers above are printed. Do you have Suggestions?
 
-Further optimize the settings or make the use more convinient. 
-You could prevent warping by automaticly slowing down in the next few layers (eg 2mm).
-You could make the algorithm hole tolerant, is a little complicated though.
-Feel free to give it a try!
+Further optimize the settings or add features like z-hop.
+You could reduce warping by automaticly slowing down in the next few layers (eg 2mm).
+
 
 ## 8. Printer Compatibility
 
