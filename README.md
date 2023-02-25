@@ -54,19 +54,28 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 
 ## 5. Current Limitations
 1. Currently deletes all Bridge Infills if an Arc in Layer. Fixing in Progress.
-2. If there are bridged, that shall not be Arc-filled, the conversion failes, try cutting them away (slice only the arc layers and inject into gcodefile) until there is a proper fix.
+2. Some settings need to be taylored to your specific geometry, just like you adapt the settings in your slicer. Details below.
 2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
 4. Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
 
 ## 6. Suggested Print Settings
-Some PrintSettings will be checked and warned if "wrong".
+Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
 
-There are a few rules of thumb for actually printing this stuff: 
+Important Settings in the Script are:
 
+a) **"ArcCenterOffset":** The surfacequality is imporved by Offsetting the arc center, because the smallest r is larger->more time to cool. Set to 0 to get into delicate areas.
+
+b) **"ExtendIntoPerimeter":** Enlargen the Area, where Arcs are Generated. Increase to thicken small/delicate passages. minValue for the algorithm to work is 0.5extrusionwidth! 
+
+c) **"MaxDistanceFromPerimeter":** Controls how bumpy you tolerate your edge. big: less tiny arcs, better surface. small:follow the curvature more exact.
+
+d) Thresholds for area and bridging length, adjust as needed, but Arc shine at large surfaces :)
+
+
+### General Print Settings: 
 The overhang print quality is greatly improved when the material solidifies as quickly as possible. Therefore:
-0. **Currently necessary PrusaSlicer Settings** :only 1 bottom layer, infill above arcs 70% hilbert curve or none , important to reduce warping. Use height modifier or modifier-mesh in the area. Thin layers also help.
   
 1. **Print as cold as possible.** I used 190 degrees for PLA. You can probably go even lower. If you require higher temp for the rest of the print, you could insert could insert some temp-change gcode before and after the arcs are printed. Might waste a lot of time though.
    
