@@ -63,7 +63,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
-        "ArcCenterOffset":1, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
+        "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
         "ArcExtrusionMultiplier":1.35,#old 1,35
         "rMax":15, # the max radius of the arcs.
@@ -71,10 +71,11 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "pointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "extendArcDist":0.5, # extend Arcs for better bonding bewteen them, only end-piece affected(yet), Unit:mm
         "DistanceBetweenPointsOnStartLine":0.1,#used for redestribution, if start fails.
-        "minArea":10*10,#Unit:mm2
+        "minArea":5*10,#Unit:mm2
         "minBridgeLength":5,#Unit:mm
         "minStartArcs":2, # how many arcs shall be generated in first step
-        "safetyBreak_MaxArcNumber":2000 #max Number of Arc Start Points. prevents While loop form running for ever.
+        "safetyBreak_MaxArcNumber":2000, #max Number of Arc Start Points. prevents While loop form running for ever.
+        "warnBelowThisFillingPercentage":90 # fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent
     }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -141,7 +142,6 @@ def makePolygonFromGCode(lines:list)->Polygon:
         #print("invalid poly: not enough pts")
         return None  
 
-
 ############ Classes #####        
 class Layer():
     def __init__(self,lines:list=[],kwargs:dict={},layernumber:int=-1)->None:
@@ -197,7 +197,7 @@ class Layer():
                         if type(pt)==type(Point):
                             linesWithStart.append(p2GCode(pt))
                         else:
-                            warnings.warn(f"Layer: {self.layernumber}: Could not fetch real StartPoint.")
+                            warnings.warn(f"Layer {self.layernumber}: Could not fetch real StartPoint.")
                 linesWithStart=linesWithStart+lines
                 extPerimeterIsStarted=True
             if (idf==len(self.features)-1 and extPerimeterIsStarted) or (extPerimeterIsStarted and not ("External" in ftype or "Overhang" in ftype)) :#finish the poly if end of featurelist or different feature
@@ -209,27 +209,31 @@ class Layer():
         if not self.extPerimeterPolys:
             self.makeExternalPerimeter2Polys()
         if len(self.extPerimeterPolys)<1:
-            warnings.warn(f"Layer: {self.layernumber}: No ExternalPerimeterPolys found in prev Layer")
+            warnings.warn(f"Layer {self.layernumber}: No ExternalPerimeterPolys found in prev Layer")
             return None,None   
         for ep in self.extPerimeterPolys:
             ep=ep.buffer(1e-2)# avoid self intersection error
 
             if ep.intersects(poly):
-                startarea=ep.intersection(poly)
-                startLineString=startarea.boundary.intersection(poly.boundary.buffer(1e-2))
-                if startLineString is None:#unlikely to happen, needed?
-                    plt.title("StartLineString is None")
-                    plot_geometry(poly,'b')
-                    plot_geometry(startarea)
-                    plot_geometry([ep for ep in self.extPerimeterPolys])  
-                    plt.legend("currentLayerPoly","StartArea(Union)","prevLayerPoly")
-                    plt.axis('square')
-                    plt.show()  
-                    warnings.warn(f"Layer: {self.layernumber}: No Intersection in Boundary,Poly+ExternalPoly")
-                    return None,None
-
-                boundaryLineString=poly.boundary.difference(startarea.boundary.buffer(1e-2))
-                print("STARTLINESTRING TYPE:",startLineString.geom_type)  
+                startArea=ep.intersection(poly)
+                startLineString=startArea.boundary.intersection(poly.boundary.buffer(1e-2))
+                if startLineString.is_empty:
+                    if poly.contains(startArea):#if inside no boundarys can overlap.
+                        startLineString=startArea.boundary
+                        boundaryLineString=poly.boundary
+                        if startLineString.is_empty:#still empty? unlikely to happen       
+                            plt.title("StartLineString is None")
+                            plot_geometry(poly,'b')
+                            plot_geometry(startArea,filled=True)
+                            plot_geometry([ep for ep in self.extPerimeterPolys])  
+                            plt.legend(["currentLayerPoly","StartArea","prevLayerPoly"])
+                            plt.axis('square')
+                            plt.show()  
+                            warnings.warn(f"Layer {self.layernumber}: No Intersection in Boundary,Poly+ExternalPoly")
+                            return None,None
+                else:    
+                    boundaryLineString=poly.boundary.difference(startArea.boundary.buffer(1e-2))
+                #print("STARTLINESTRING TYPE:",startLineString.geom_type)  
                 if kwargs.get("plotStart"):
                     print("Geom-Type:",poly.geom_type)
                     plot_geometry(poly,color="b")
@@ -244,10 +248,10 @@ class Layer():
                 plt.title("no intersection with prev Layer Boundary")
                 plot_geometry(poly,'b')
                 plot_geometry([ep for ep in self.extPerimeterPolys])  
-                plt.legend("currentLayerPoly","prevLayerPoly")
+                plt.legend(["currentLayerPoly","prevLayerPoly"])
                 plt.axis('square')
                 plt.show()  
-                warnings.warn(f"Layer: {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
+                warnings.warn(f"Layer {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
                 return None,None
 
     def mergePolys(self):
@@ -273,7 +277,7 @@ class Layer():
                 for line in lines:
                     if "G1" in line and (not isWipeMove):
                         if (not "E" in line) and travelstr in line and splitAtTravel:
-                            print(f"Layer {self.layernumber}: try to split feature. No. of pts before:",len(pts))
+                            #print(f"Layer {self.layernumber}: try to split feature. No. of pts before:",len(pts))
                             if len(pts)>=2:#make at least 1 ls
                                 parts.append(pts)
                                 pts=[]# update self.features... TODO
@@ -319,7 +323,7 @@ class Layer():
         if len(overhangs)>0:
             allowedSpacePolygon=self.parameters.get("allowedSpaceForArcs")
             if not allowedSpacePolygon:
-                raise ValueError(f"Layer: {self.layernumber}: no allowed space Polygon provided to layer obj")
+                raise ValueError(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj")
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
                     continue
@@ -397,7 +401,7 @@ class Arc():
         return arc            
 
 class BridgeInfill():
-    def __init__(self,pts=[],id=random.randrange(1e2,1e10)) -> None:
+    def __init__(self,pts=[],id=random.randint(1,1e10)) -> None:
         self.pts=pts
         self.deleteLater=False
         self.id=id
@@ -684,9 +688,13 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
             GCodeLines.append(retractGCode(retract=True))
     return GCodeLines        
 
+def _warning(message,category = UserWarning, filename = '', lineno = -1,*args, **kwargs):
+    print(f"{filename}:{lineno}: {message}")
+warnings.showwarning = _warning
 
 ############# MAIN ############
 if __name__=="__main__":
+    
     gCodeFileStream,path2GCode = getFileStreamAndPath()
     gCodeLines=gCodeFileStream.readlines()
     gCodeSettingDict=readSettingsFromGCode2dict(gCodeLines)
@@ -778,8 +786,11 @@ if __name__=="__main__":
                         #start bfs (breadth first search algorithm) to fill the remainingspace
                         idx=0
                         safetyBreak=0
+                        triedFixing=False
                         while idx<len(finalarcs):
-                            print("\rwhile executed:",idx, len(finalarcs))
+                            sys.stdout.write("\033[F") #back to previous line 
+                            sys.stdout.write("\033[K") #clear line 
+                            print("while executed:",idx, len(finalarcs))#\r=Cursor at linestart
                             curArc=finalarcs[idx]
                             if curArc.poly.geom_type=="MultiPolygon":
                                 farthestPointOnArc,longestDistance,NearestPointOnPoly=get_farthest_point(curArc.poly.geoms[0],poly,remainingSpace)
@@ -811,7 +822,21 @@ if __name__=="__main__":
                                 plot_geometry(remainingSpace,'g',filled=True)
                                 plot_geometry(startpt,"r")
                                 plt.axis('square')
-                                plt.show()         
+                                plt.show()
+                                
+                            if len(finalarcs)==1 and idx==1 and remainingSpace.area/poly.area*100>50 and not triedFixing:
+                                #error handling: the arc-generation got stuck at a thight spot during startup. Automated fix:
+                                parameters["ArcCenterOffset"]=0
+                                rMin=arcWidth/1.5
+                                idx=0
+                                triedFixing=True
+                                print("the arc-generation got stuck at a thight spot during startup. Used Automated fix:set ArcCenterOffset to 0")
+                            if triedFixing and len(finalarcs)==1 and idx==1:
+                                print("fix did not work.")    
+                        #poly finished
+                        remain2FillPercent=remainingSpace.area/poly.area*100
+                        if  remain2FillPercent> 100-parameters.get("warnBelowThisFillingPercentage"):
+                            warnings.warn(f"layer {idl}: The Overhang Area is only {remain2FillPercent:.0f}% filled with Arcs. Please try again with adapted Parameters: set 'extendIntoPerimeter' higher to enlargen small areas. lower the maxDistanceFromPerimeter to follow the curvature more precise. Set 'ArcCenterOffset' to 0 to reach delicate areas. ")                 
                         if parameters.get("plotArcsFinal"):
                             plt.title(f"Iteration {idx}, Total No Start Points: {len(finalarcs)}, Total No Arcs: {len(arcs)}")
                             plot_geometry(startLineString,'r')
@@ -862,4 +887,3 @@ f.close()
 #os.startfile(path2GCode, 'open')
 print("Code executed successful")
 input("Push enter to close this window")
-
