@@ -61,6 +61,7 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 4. when next layers are added: Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
 5. no wiping or z-hop during travel moves
 6. remaining print time shown during printing is wrong. The real printtime can be seen when opening the finished file in GcodeViewer.
+7. will take the first island of the prev. perimeter as a startpoint. If you dont like that point, turn the models along z-axis.
 
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
