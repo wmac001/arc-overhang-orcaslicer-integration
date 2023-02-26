@@ -62,7 +62,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "MaxDistanceFromPerimeter":2*gCodeSettingDict.get("perimeter_extrusion_width"),#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "MinArea":5*10,#Unit:mm2
         "MinBridgeLength":5,#Unit:mm
-        "RMax":250, # the max radius of the arcs.
+        "RMax":100, # the max radius of the arcs.
 
         #advanced Settings, you should not need to touch these.
         "ArcExtrusionMultiplier":1.35,
@@ -76,7 +76,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "PointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "SafetyBreak_MaxArcNumber":2000, #max Number of Arc Start Points. prevents While loop form running for ever.
         "WarnBelowThisFillingPercentage":90, # fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent
-        "GenerateTestModels":True, # temporary to generate specific testgeometrys.
+        "UseLeastAmountOfCenterPoints":False, # always generates arcs until rMax is reached, divide the arcs into pieces in needed. reduces the amount of centerpoints.
     
         #settings for easier debugging:
         "plotStart":False, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
@@ -148,32 +148,28 @@ def main(gCodeFileStream,path2GCode)->None:
                         #first step in Arc Generation
                         
                         concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
-                        arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                         #print(f"number of concentric arcs generated:",len(concentricArcs))
                         if len(concentricArcs)<parameters.get("MinStartArcs"): 
                             #possibly bad chosen startpt, errorhandling:
                             startpt=getStartPtOnLS(redistribute_vertices(startLineString,0.1),parameters)
                             concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
-                            arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                             if len(concentricArcs)<parameters.get("MinStartArcs"):#still insuff start: try random
                                 print(f"Layer {idl}: Using random Startpoint")
                                 for idr in range(10):
                                     startpt=getStartPtOnLS(startLineString,parameters,choseRandom=True)
                                     concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
-                                    arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
                                     if len(concentricArcs)>=parameters.get("MinStartArcs"):
                                         break
                                 if len(concentricArcs)<parameters.get("MinStartArcs"):    
                                     for idr in range(10):
                                         startpt=getStartPtOnLS(redistribute_vertices(startLineString,0.1),parameters,choseRandom=True)
-                                        concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)
-                                        arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]    
+                                        concentricArcs=generateMultipleConcentricArcs(startpt,rMinStart,rMax,boundaryWithOutStartLine,remainingSpace,parameters)    
                                         if len(concentricArcs)>=parameters.get("MinStartArcs"):
                                             break              
                                 if len(concentricArcs)<parameters.get("MinStartArcs"):        
                                     warnings.warn("Initialization Error: no concentric Arc could be generated at startpoints, moving on")
                                     continue
-
+                        arcBoundarys=getArcBoundarys(concentricArcs)
                         finalarcs.append(concentricArcs[-1]) 
                         for arc in concentricArcs: 
                             remainingSpace=remainingSpace.difference(arc.poly.buffer(1e-2))
@@ -199,7 +195,7 @@ def main(gCodeFileStream,path2GCode)->None:
                                 continue
                             startpt=move_toward_point(farthestPointOnArc,curArc.center,parameters.get("ArcCenterOffset",2))
                             concentricArcs=generateMultipleConcentricArcs(startpt,rMin,rMax,poly.boundary,remainingSpace,parameters)
-                            arcBoundarys=[arc.extractArcBoundary() for arc in concentricArcs]
+                            arcBoundarys=getArcBoundarys(concentricArcs)
                             #print(f"number of concentric arcs generated:",len(concentricArcs))
                             if len(concentricArcs)>0:
                                 for arc in concentricArcs: 
@@ -589,7 +585,7 @@ class Arc():
         self.parameters=kwargs
     def setPoly(self,poly:Polygon)->None:
         self.poly=poly    
-    def extractArcBoundary(self)->LineString:
+    def extractArcBoundary(self)->LineString|list:
         circ=create_circle(self.center,self.r,self.pointsPerCircle)    
         trueArc=self.poly.boundary.intersection(circ.boundary.buffer(1e-2))
         if trueArc.geom_type=='MultiLineString':
@@ -604,13 +600,12 @@ class Arc():
             self.arcline=merged
             return merged                             
         elif merged.geom_type=="MultiLineString":
-            warnings.warn(f"Arc: C:{self.center:.2f},r:{self.r:.2f}, Boundary was not continous, only longest part passed")
-            length=-1
+            arcList=[]
             for ls in merged.geoms:
-                if ls.length>length:
-                    self.arcline=ls
-                    length=ls.length
-            return self.arcline
+                arc=Arc(self.center,self.r,self.parameters)
+                arc.arcline=ls
+                arcList.append(arc)
+            return arcList
         else:
             input("ArcBoundary merging Error.Unable to run script. Press Enter.")
             raise ValueError("ArcBoundary merging Error")
@@ -772,7 +767,7 @@ def generateMultipleConcentricArcs(startpt:Point,rMin:float,rMax:float, boundary
     while r<=rMax:
         arcObj=Arc(startpt,r,kwargs=kwargs)
         arc=arcObj.generateConcentricArc(startpt,remainingSpace)
-        if arc.intersects(boundaryLineString) and not kwargs.get("GenerateTestModels",False):
+        if arc.intersects(boundaryLineString) and not kwargs.get("UseLeastAmountOfCenterPoints",False):
             break
         arcs.append(arcObj)
         #print("True Arc type:",type(arc4gcode))
@@ -823,6 +818,18 @@ def plot_geometry(geometry, color='black', linewidth=1,**kwargs):
 
 ################################# HELPER FUNCTIONS Arc->GCode #################################
 ############################################################################################### 
+
+def getArcBoundarys(concentricArcs:list)->list:
+    '''Handle arcs composited from multiple parts'''
+    boundarys=[]
+    for arc in concentricArcs:
+        arcLine=arc.extractArcBoundary()
+        if type(arcLine)==type([]):
+            for arc in arcLine:
+                boundarys.append(arc.arcline)
+        else:
+            boundarys.append(arcLine)
+    return boundarys                
 
 def readSettingsFromGCode2dict(gcodeLines:list)->dict:
     gCodeSettingDict={}
