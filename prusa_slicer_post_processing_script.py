@@ -56,29 +56,30 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "AllowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs.
         "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
-        "ArcPrintSpeed":3*60, #Unit:mm/min
-        "ArcTravelFeedRate":50*60, # slower travel speed, Unit:mm/min
-        "ExtendIntoPerimeter":1.0*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
-        "MaxDistanceFromPerimeter":gCodeSettingDict.get("perimeter_extrusion_width")*1.5,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
+        "ArcPrintSpeed":1.5*60, #Unit:mm/min
+        "ArcTravelFeedRate":30*60, # slower travel speed, Unit:mm/min
+        "ExtendIntoPerimeter":2.0*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
+        "MaxDistanceFromPerimeter":2*gCodeSettingDict.get("perimeter_extrusion_width"),#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "MinArea":5*10,#Unit:mm2
         "MinBridgeLength":5,#Unit:mm
-        "RMax":15, # the max radius of the arcs.
+        "RMax":250, # the max radius of the arcs.
 
         #advanced Settings, you should not need to touch these.
-        "ArcExtrusionMultiplier":1.5,#old 1,35
+        "ArcExtrusionMultiplier":1.35,
         "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
         "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.95, #change the spacing between the arcs,should be nozzle_diameter
-        "CornerImportanceMultiplier":0.3, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
+        "CornerImportanceMultiplier":0.2, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
         "DistanceBetweenPointsOnStartLine":0.1,#used for redestribution, if start fails.
         "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
-        "ExtendArcDist":0.5, # extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet), Unit:mm
+        "ExtendArcDist":1.0, # extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet), Unit:mm
         "MinStartArcs":2, # how many arcs shall be generated in first step
         "PointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
         "SafetyBreak_MaxArcNumber":2000, #max Number of Arc Start Points. prevents While loop form running for ever.
         "WarnBelowThisFillingPercentage":90, # fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent
+        "GenerateTestModels":True, # temporary to generate specific testgeometrys.
     
         #settings for easier debugging:
-        "plotStart":True, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
+        "plotStart":False, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
         "plotArcsEachStep":False, #plot arcs for every filled polygon. use for debugging
         "plotArcsFinal":False, #plot arcs for every filled polygon, when completely filled. use for debugging
         "plotDetectedInfillPoly":False # plot each detected overhang polygon, use for debugging.
@@ -233,7 +234,7 @@ def main(gCodeFileStream,path2GCode)->None:
                         #poly finished
                         remain2FillPercent=remainingSpace.area/poly.area*100
                         if  remain2FillPercent> 100-parameters.get("WarnBelowThisFillingPercentage"):
-                            warnings.warn(f"layer {idl}: The Overhang Area is only {remain2FillPercent:.0f}% filled with Arcs. Please try again with adapted Parameters: set 'ExtendIntoPerimeter' higher to enlargen small areas. lower the MaxDistanceFromPerimeter to follow the curvature more precise. Set 'ArcCenterOffset' to 0 to reach delicate areas. ")                 
+                            warnings.warn(f"layer {idl}: The Overhang Area is only {100-remain2FillPercent:.0f}% filled with Arcs. Please try again with adapted Parameters: set 'ExtendIntoPerimeter' higher to enlargen small areas. lower the MaxDistanceFromPerimeter to follow the curvature more precise. Set 'ArcCenterOffset' to 0 to reach delicate areas. ")                 
                         if parameters.get("plotArcsFinal"):
                             plt.title(f"Iteration {idx}, Total No Start Points: {len(finalarcs)}, Total No Arcs: {len(arcs)}")
                             plot_geometry(startLineString,'r')
@@ -250,9 +251,10 @@ def main(gCodeFileStream,path2GCode)->None:
                         #    plot_geometry(Point(arc.coords[0]))
                         #plt.axis('square')
                         #plt.show()
-                        for ida,arc in enumerate(arcs4gcode):    
-                            arcGCode=arc2GCode(arcline=arc,eStepsPerMM=eStepsPerMM,arcidx=ida)
-                            arcOverhangGCode.append(arcGCode)
+                        for ida,arc in enumerate(arcs4gcode):
+                            if not arc.is_empty:    
+                                arcGCode=arc2GCode(arcline=arc,eStepsPerMM=eStepsPerMM,arcidx=ida)
+                                arcOverhangGCode.append(arcGCode)
                     #all polys finished       
                     modifiedlayer=Layer([],parameters,idl) # copy the other infos if needed: future to do
                     isInjected=False
@@ -422,7 +424,6 @@ class Layer():
             return None,None   
         for ep in self.extPerimeterPolys:
             ep=ep.buffer(1e-2)# avoid self intersection error
-
             if ep.intersects(poly):
                 startArea=ep.intersection(poly)
                 startLineString=startArea.boundary.intersection(poly.boundary.buffer(1e-2))
@@ -453,15 +454,15 @@ class Layer():
                     plt.axis('square')
                     plt.show()  
                 return startLineString,boundaryLineString
-            else:
-                plt.title("no intersection with prev Layer Boundary")
-                plot_geometry(poly,'b')
-                plot_geometry([ep for ep in self.extPerimeterPolys])  
-                plt.legend(["currentLayerPoly","prevLayerPoly"])
-                plt.axis('square')
-                plt.show()  
-                warnings.warn(f"Layer {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
-                return None,None
+        #end of for loop, and no intersection found        
+        plt.title("no intersection with prev Layer Boundary")
+        plot_geometry(poly,'b')
+        plot_geometry([ep for ep in self.extPerimeterPolys])  
+        plt.legend(["currentLayerPoly","prevLayerPoly"])
+        plt.axis('square')
+        plt.show()  
+        warnings.warn(f"Layer {self.layernumber}: No intersection with prevLayer External Perimeter detected") 
+        return None,None
 
     def mergePolys(self):
         mergedPolys = unary_union(self.polys)
@@ -585,6 +586,7 @@ class Arc():
         self.center=center
         self.r=r
         self.pointsPerCircle=kwargs.get("PointsPerCircle",80)
+        self.parameters=kwargs
     def setPoly(self,poly:Polygon)->None:
         self.poly=poly    
     def extractArcBoundary(self)->LineString:
@@ -770,7 +772,7 @@ def generateMultipleConcentricArcs(startpt:Point,rMin:float,rMax:float, boundary
     while r<=rMax:
         arcObj=Arc(startpt,r,kwargs=kwargs)
         arc=arcObj.generateConcentricArc(startpt,remainingSpace)
-        if arc.intersects(boundaryLineString):
+        if arc.intersects(boundaryLineString) and not kwargs.get("GenerateTestModels",False):
             break
         arcs.append(arcObj)
         #print("True Arc type:",type(arc4gcode))
@@ -884,6 +886,8 @@ def arc2GCode(arcline:LineString,eStepsPerMM:float,arcidx=None,kwargs={})->list:
     GCodeLines=[]
     p1=None
     pts=[Point(p) for p in arcline.coords]
+    if len(pts)<2:
+        return []
     #plt.plot([p.x for p in pts],[p.y for p in pts])
     #plt.axis('square')
     #plt.show()      
