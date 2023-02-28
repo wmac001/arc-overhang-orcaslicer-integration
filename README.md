@@ -62,6 +62,7 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 5. no wiping or z-hop during travel moves
 6. remaining print time shown during printing is wrong. The real printtime can be seen when opening the finished file in GcodeViewer.
 7. will take the first island of the prev. perimeter as a startpoint. If you dont like that point, turn the models along z-axis.
+8. Physics: The arcs need to be able to support their own weight without much deformation. Therefore narrow and long bridges will be generated, but not print successfull. Use some supports to stabilize critical areas.
 
 ## 5.1 Updates:
 Warping reduced by turning the fan of for the next few layers and printing them slow to. Turned into sagging, was a little much, working my way up again :)
@@ -94,10 +95,18 @@ The overhang print quality is greatly improved when the material solidifies as q
 2. **Maximize cooling.** Set your fans to full blast. I don't think this technique will work too well with ABS and materials that can't use cooling fans, but I haven't tested it.
 3. **Print slowly.** I use around 2 mm/s. Even that is too fast sometimes for the really tiny arcs, since they have almost no time to cool before the next layer begins.
 
+## 6.1 Examples:
+<p align="center">
+<img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/example_different_surface_finish.png" width=800>
+  </p>
 
 ## 7. Room for Improvement
 We would be happy if you contribute!
-Currently the biggest issue is severe warping, when the infill layers above are printed. Do you have Suggestions?
+Currently the biggest issue is severe warping, when the infill layers above are printed. Do you have Suggestions? Update above.
+The surface-finish seems to be better with using as little as possible start points for the arcs. but where are the Limits? Finding an algorithm deciding when to start a new arc, working reliable an a wide set of geometrys is the next ongoing developement.
+
+Printing long overhangs is tricky due to gravity. a meet in the middle concept could help, but how do we teach that to the computer?
+Feel free to encorporate any Ideas in the post-processing script and try them!
 
 Further optimize the settings or add features like z-hop.
 You could reduce warping by automaticly slowing down in the next few layers (eg 2mm).
@@ -110,6 +119,7 @@ By default, the output gcode should print fine on most standard desktop FDM prin
 ## 9. Easy Way to try Out
 
 If you want to try the prints without installing, Steven and I added some test print gcode files in the root directory that you can directly download. They should print fine on most printers although you may need to manually adjust the gcode so that it works with your printer.
+
 
 
 ## 10. Print it! 
