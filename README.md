@@ -63,6 +63,13 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 6. remaining print time shown during printing is wrong. The real printtime can be seen when opening the finished file in GcodeViewer.
 7. will take the first island of the prev. perimeter as a startpoint. If you dont like that point, turn the models along z-axis.
 
+## 5.1 Updates:
+Warping reduced by turning the fan of for the next few layers and printing them slow to. Turned into sagging, was a little much, working my way up again :)
+Details results follow. But good news is: The problem seems solvable!
+<p align="center">
+<img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/Attag_on_warping_withText.png" width=800>
+  </p>
+
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
 
