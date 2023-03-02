@@ -20,7 +20,7 @@ This is a basic visualisation how the algorithm works:
 ![arc-overhang visualization](examples/gcode_vis3.gif)
 
 (this visualisation uses depth first generation, the current version uses breadth first search algorithm to fill the remaining space in the overhang.
-## 1. Brief Explanation (from Steven McColloch):
+## 1. Brief Explanation (from Steven McCulloch):
 
 1. You can print 90° overhangs by wrapping filament around itself in concentric **arcs**. You may have seen the [fullcontrol.xyz overhang challenge](https://fullcontrol.xyz/#/models/b70938). This uses the exact same principle.
 Here's what this effect looks like while printing:  
