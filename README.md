@@ -33,8 +33,8 @@ To get perfect results you need to tune the process to fit your machine. Also it
 For more details visit: https://github.com/stmcculloch/arc-overhang
 ## 3. Setup-Process
 1. download and install Python 3, at least Version 3.5, check the "add to PATH" box during the installation.
-2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
-3. Ready to go! Tested only with PrusaSlicer 2.5
+2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) **and new** [/numpy-hilbert-curve](https://pypi.org/project/numpy-hilbert-curve/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
+3. Ready to go! Tested only with PrusaSlicer 2.5 & Python 3.10 :)
 
 
 ## 4. How to use it:
@@ -58,15 +58,25 @@ If you want to change generation settings: Open the Script in an editor, scroll 
 2. Code is slow on more complicated models, but is not optimized for speed yet.
 3. The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected
 =>if precision needed make test prints to counter this effect.
-4. when next layers are added: Heavy warping, locking for way to fix it. Message me or Steven if you have an Idea :)
+4. Some warping, when printing the follow up layers. Balance the cooling of these layers with gravity/heat softening. There are parameters defined in the parameter section. Working on optimized settings. 
 5. no wiping or z-hop during travel moves
 6. remaining print time shown during printing is wrong. The real printtime can be seen when opening the finished file in GcodeViewer.
 7. will take the first island of the prev. perimeter as a startpoint. If you dont like that point, turn the models along z-axis.
-8. Physics: The arcs need to be able to support their own weight without much deformation. Therefore narrow and long bridges will be generated, but not print successfull. Use some supports to stabilize critical areas.
+8. delets solid infill incl the last travel move if multiple islands present. Causes small defect. Fixing in progress.
+9. Scaling of the hilbert-infill is non-linear. Fixing in progress, would appreciate if you submit a solution via pull request :)
+10. settings testet for PLA only. You can of cause try other materials and share your knowlege here!
+11. Physics: The arcs need to be able to support their own weight without much deformation. Therefore narrow and long bridges will be generated, but not print successfull. Use some supports to stabilize critical areas.
 
 ## 5.1 Updates:
-Warping reduced by turning the fan of for the next few layers and printing them slow to. Turned into sagging, was a little much, working my way up again :)
-Details results follow. But good news is: The problem seems solvable!
+Reduced warping significantly! The warping is caused by the follow-up layers that contract during the cooldown. This effect is most prominent along a long line.
+We can break up the massive infill bottom layers in multiple small lines by changing direction as in a hilbert-curve. A hilbert curve pattern is associatet with the smallest residual thermal stresses [Reasearch on SLS-3d-printing](https://www.researchgate.net/publication/313685481_Fractal_Scan_Strategies_for_Selective_Laser_Melting_of_'Unweldable'_Nickel_Superalloys). This shows great success, but some more time is needed to find the limits (e.g printing speed) and effects of this printing strategy. 
+The script has now the added functionality to convert solid infill layers close to the arcs into hilbert-curve infill. Also it splits up the curve to avoid heat accumulation and therefore softening of the material below.
+
+Unfortunately we can't do so for the perimeters, so print them as slow as possible and with the least cooling possible. The script now has parameters defined to adress this automaticly.
+
+On the other hand: printing without cooling causes the overhang to bend downwards. Possibly caused by the added weight + heat softening, so a balance of the thermal contraction forces and gravity might be a solution. Research is in Progress, Steven and I would be happy if you share your knowlege and experiences from you prints!
+
+Example images of curling/warping vs sagging, tested on extreme overhang with 100mm diameter:
 <p align="center">
 <img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/Attag_on_warping_withText.png" width=800>
   </p>
@@ -74,8 +84,6 @@ Details results follow. But good news is: The problem seems solvable!
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
 
-Reduce Warping:
-Recommended in the Arc-Overhang area: only 1 bottom layer, infill: less is better, avoid straight lines, e.g. hilbert-curve.
 ### Important Settings in the Script are:
 
 a) **"ArcCenterOffset":** The surfacequality is imporved by Offsetting the arc center, because the smallest r is larger->more time to cool. Set to 0 to get into delicate areas.
@@ -86,6 +94,9 @@ c) **"MaxDistanceFromPerimeter":** Controls how bumpy you tolerate your edge. bi
 
 d) Thresholds for area and bridging length, adjust as needed, but Arc shine at large surfaces :)
 
+e) **"UseLeastAmountOfCenterPoints":** experimental: use only one arc-center until rMax is reached (then iterate as usual), improves surface finish but can lead to failed prints on complex geometrys.
+
+f) Adjust the cooling and print speed of the follow-up layers to reduce warping as needed.(More cooling->more warping)
 
 ### General Print Settings: 
 The overhang print quality is greatly improved when the material solidifies as quickly as possible. Therefore:
@@ -102,14 +113,13 @@ The overhang print quality is greatly improved when the material solidifies as q
 
 ## 7. Room for Improvement
 We would be happy if you contribute!
-Currently the biggest issue is severe warping, when the infill layers above are printed. Do you have Suggestions? Update above.
-The surface-finish seems to be better with using as little as possible start points for the arcs. but where are the Limits? Finding an algorithm deciding when to start a new arc, working reliable an a wide set of geometrys is the next ongoing developement.
+The surface-finish seems to be better with using as little as possible start points for the arcs. but where are the Limits? Finding an algorithm deciding when to start a new arc, working reliable an a wide set of geometrys is the next ongoing developement. I you have any questions/ideas I would be happy if you share them!
 
 Printing long overhangs is tricky due to gravity. a meet in the middle concept could help, but how do we teach that to the computer?
 Feel free to encorporate any Ideas in the post-processing script and try them!
 
-Further optimize the settings or add features like z-hop.
-You could reduce warping by automaticly slowing down in the next few layers (eg 2mm).
+Further optimize the settings or add features like z-hop and quality of life features like correct displaying of remaining print time.
+
 
 
 ## 8. Printer Compatibility
