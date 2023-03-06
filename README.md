@@ -33,7 +33,7 @@ To get perfect results you need to tune the process to fit your machine. Also it
 For more details visit: https://github.com/stmcculloch/arc-overhang
 ## 3. Setup-Process
 1. download and install Python 3, at least Version 3.5, check the "add to PATH" box during the installation.
-2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) **and new** [/numpy-hilbert-curve](https://pypi.org/project/numpy-hilbert-curve/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
+2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) **and new [numpy-hilbert-curve]**(https://pypi.org/project/numpy-hilbert-curve/) via "python -m pip install "+library-name in your console (type cmd in start-menu search).
 3. Ready to go! Tested only with PrusaSlicer 2.5 & Python 3.10 :)
 
 
