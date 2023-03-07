@@ -74,12 +74,15 @@ The script has now the added functionality to convert solid infill layers close 
 
 Unfortunately we can't do so for the perimeters, so print them as slow as possible and with the least cooling possible. The script now has parameters defined to adress this automaticly.
 
-On the other hand: printing without cooling causes the overhang to bend downwards. Possibly caused by the added weight + heat softening, so a balance of the thermal contraction forces and gravity might be a solution. Research is in Progress, Steven and I would be happy if you share your knowlege and experiences from you prints!
+On the other hand: printing without cooling causes the overhang to bend downwards. Possibly caused by the added weight + heat softening, so a balance of the thermal contraction forces and gravity might be a solution. For me cooling at 10% worked quite nice. Research is in Progress, Steven and I would be happy if you share your knowlege and experiences from you prints!
 
-Example images of curling/warping vs sagging, tested on extreme overhang with 100mm diameter:
+Example images of minimized warping, tested on extreme overhang with 100mm diameter:
 <p align="center">
-<img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/Attag_on_warping_withText.png" width=800>
+<img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/solving_warping.png" width=800>
   </p>
+The bulging downwards happens due to the geometry of the object: The long arcs contract when cooled down, causing some stress in the printed part. The next one adds more contraction stress, that release in the bulging. This happens due to physics and geometry. The bulging issue can be solved by a)set rMax to 40mm, b) change the geometry so the arclines are splited into multiple parts and extreme long arcs are avoided.
+
+The warping of <2mm is in my opinion acceptable, as we talk about a very large surface and it is only occuring at the very edge.
 
 ## 6. Suggested Print Settings
 Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
