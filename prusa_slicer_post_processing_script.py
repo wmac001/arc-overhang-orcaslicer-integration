@@ -521,7 +521,7 @@ class Layer():
                 if poly:
                     self.extPerimeterPolys.append(poly) 
                 extPerimeterIsStarted=False   
-    def makeStartLineString(self,poly:Polygon,kwargs:dict={})->tuple[LineString,LineString]:
+    def makeStartLineString(self,poly:Polygon,kwargs:dict={}):
         if not self.extPerimeterPolys:
             self.makeExternalPerimeter2Polys()
         if len(self.extPerimeterPolys)<1:
@@ -1050,6 +1050,7 @@ def readSettingsFromGCode2dict(gcodeLines:list)->dict:
     if "%" in str(gCodeSettingDict.get("perimeter_extrusion_width")) : #overwrite Percentage width as suggested by 5axes via github                
         gCodeSettingDict["perimeter_extrusion_width"]=gCodeSettingDict.get("nozzle_diameter")*(float(gCodeSettingDict.get("perimeter_extrusion_width").strip("%"))/100)                 
     return gCodeSettingDict
+
 def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
     if not ";AFTER_LAYER_CHANGE" in gCodeSettingDict.get("layer_gcode"):
         warnings.warn("After Layer Change missing keyword, expected: ';AFTER_LAYER_CHANGE' ")
