@@ -1060,7 +1060,9 @@ def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
         return False
     if not gCodeSettingDict.get("overhangs"):
         warnings.warn("Overhang detection disabled. Activate for script success!")
-        return False    
+        return False
+    if gCodeSettingDict.get("bridge_speed")>5:
+        warnings.warn(f"Your Bridging Speed is set to {gCodeSettingDict.get('bridge_speed'):.0f} mm/s. This can cause problems with warping.<=5mm/s is recommended")        
     if gCodeSettingDict.get("infill_first"):
         warnings.warn("Infill is printed before perimeter. This can cause problems with the script.")
     if gCodeSettingDict.get("external_perimeters_first"):
