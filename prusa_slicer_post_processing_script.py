@@ -1053,9 +1053,9 @@ def readSettingsFromGCode2dict(gcodeLines:list)->dict:
     return gCodeSettingDict
 
 def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
-    if not ";AFTER_LAYER_CHANGE" in gCodeSettingDict.get("layer_gcode"):
-        warnings.warn("After Layer Change missing keyword, expected: ';AFTER_LAYER_CHANGE' ")
-        return False
+    #if not ";AFTER_LAYER_CHANGE" in gCodeSettingDict.get("layer_gcode"):
+        #warnings.warn("After Layer Change missing keyword, expected: ';AFTER_LAYER_CHANGE' ")
+        #return False
     if not gCodeSettingDict.get("use_relative_e_distances"):
         warnings.warn("Script only works with relative e-distances. Change acordingly.")
         return False
