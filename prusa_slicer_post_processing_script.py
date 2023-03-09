@@ -55,6 +55,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
     #the slicer-settings will be imported from GCode. But some are Arc-specific and need to be adapted by you.
     AddManualSettingsDict={
         #adapt these settings as needed for your specific geometry/printer:
+        "checkForAllowedSpace":False,
         "AllowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs.
         "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
@@ -669,7 +670,7 @@ class Layer():
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
                     continue
-                if not allowedSpacePolygon.contains(poly):
+                if not allowedSpacePolygon.contains(poly) or not self.parameters.get("checkForAllowedSpace"):
                     continue
                 if poly.area<self.parameters.get("MinArea"):
                     continue               
