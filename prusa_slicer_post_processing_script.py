@@ -13,28 +13,20 @@ Option B) open PrusaSlicer, go to print-settings-tab->output-options. Locate the
 If you want to change generation settings: Scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
 
 Requirements:
-Python 3.5+ and the librarys: shapely 1.8+, numpy 1.2+, matplotlib for debugging
-Tested only in PrusaSlicer 2.5, other versions might need adapted keywords.
-
-Limitations:
--As with your 3d-printer you may need to customize some settings to your specific geometry. The script will inform you how, when Errors occur :)
--Currently deletes all BridgeInfills in layers with arcs...
--while the arcs print fairly straight, the layers above will induce warping.
--The Arcs are extruded very thick, so the layer will be 0.1-0.5mm thicker (dependend on nozzle dia) than expected=>if precision needed make test prints to counter this effect.
+Python 3.5+ and the librarys: shapely 1.8+, numpy 1.2+, numpy-hilbert-curve matplotlib for debugging
+Slicing in PrusaSlicer is mandatory.
+Tested only in PrusaSlicer 2.5&Python 3.10, other versions might need adapted keywords.
 
 Notes:
 This code is a little messy. Usually I would devide it into multiple files, but that would compromise the ease of use.
 Therefore I divided the code into sections, marked with ###
 Feel free to give it some refactoring and add more functionalities!
-
-Future possible extensions:
--slow down all commands 5mm above arcs, to prevent warping, slow down the bridging-speed of the perimeter, if necessary
-
+Used Coding-Flavour: variable Names: smallStartEveryWordCapitalized, 'to' replaced by '2', same for "for"->"4". Parameters: BigStartEveryWordCapitalized
 
 Known issues:
--pointsPerCircle>80 give weird results
--MaxDistanceFromPerimeter >=2*perimeterwidth=weird result.
--avoid using the code multiple times onto the same gcode, as errors might accumulate.
+-pointsPerCircle>80 might give weird results
+-MaxDistanceFromPerimeter >=2*perimeterwidth might weird result.
+-avoid using the code multiple times onto the same gcode, since the bridge infill is deleted when the arcs are generated.
 """
 #!/usr/bin/python
 import sys
@@ -55,12 +47,12 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
     #the slicer-settings will be imported from GCode. But some are Arc-specific and need to be adapted by you.
     AddManualSettingsDict={
         #adapt these settings as needed for your specific geometry/printer:
-        "checkForAllowedSpace":False,
+        "CheckForAllowedSpace":False,# use the following x&y filter or not
         "AllowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
         "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs.
         "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
         "ArcPrintSpeed":1.5*60, #Unit:mm/min
-        "ArcPrintTemp":gCodeSettingDict.get("temperature"), # unit: Celsius
+        #"ArcPrintTemp":gCodeSettingDict.get("temperature"), # unit: Celsius
         "ArcTravelFeedRate":30*60, # slower travel speed, Unit:mm/min
         "ExtendIntoPerimeter":1.0*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
         "MaxDistanceFromPerimeter":2*gCodeSettingDict.get("perimeter_extrusion_width"),#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
@@ -118,6 +110,7 @@ def main(gCodeFileStream,path2GCode)->None:
         input("Can not run script, gcode unmodified. Press enter to close.")
         raise ValueError("Incompatible Settings used!") 
     layerobjs=[]
+    gcodeWasModified=False
     if gCodeFileStream:
         layers=splitGCodeIntoLayers(gCodeLines)
         gCodeFileStream.close()
@@ -143,6 +136,7 @@ def main(gCodeFileStream,path2GCode)->None:
                 #ARC GENERATION
                 if layer.validpolys:
                     modify=True
+                    gcodeWasModified=True
                     print(f"overhang found layer {idl}:",len(layer.polys))
                     #set special cooling settings for the follow up layers
                     maxZ=layer.z+parameters.get("specialCoolingZdist")
@@ -335,13 +329,18 @@ def main(gCodeFileStream,path2GCode)->None:
                                         modifiedlayer.lines.append(layer.lines[id])
                                         break
                         if layer.oldpolys:
-                            if ":Solid" in line and not hilbertIsInjected:# startpoint of solid infill: print all hilberts from here.
+                            if ";TYPE" in line and not hilbertIsInjected:# startpoint of solid infill: print all hilberts from here.
                                 hilbertIsInjected=True
                                 injectionStart=idline
                                 modifiedlayer.lines.append(";TYPE:Solid infill\n")
                                 modifiedlayer.lines.append(f"M106 S{parameters.get('aboveArcsFanSpeed')}\n")
                                 hilbertGCode=hilbert2GCode(allhilbertpts,parameters,layer.height)
                                 modifiedlayer.lines.extend(hilbertGCode)
+                                #add restored pre-injected tool position
+                                for id in reversed(range(injectionStart)):
+                                    if "X" in layer.lines[id]:
+                                        modifiedlayer.lines.append(layer.lines[id])
+                                        break
                         if "G1 F" in line.split(";")[0]:#special block-speed-command
                             curPrintSpeed=line    
                         if layer.exportThisLine(idline):
@@ -362,15 +361,18 @@ def main(gCodeFileStream,path2GCode)->None:
                                 modifiedlayer.lines.append(line)
                     if messedWithFan:
                         modifiedlayer.lines.append(f"M106 S{layer.fansetting:.0f}\n")
-                        messedWithFan=False    
+                        messedWithFan=False        
                     layerobjs[idl]=modifiedlayer  # overwrite the infos
-    f=open(path2GCode,"w")
-    print("write to file")
-    for layer in layerobjs:
-        f.writelines(layer.lines)
-    f.close()    
+    if gcodeWasModified:
+        f=open(path2GCode,"w")
+        print("overwriting file")
+        for layer in layerobjs:
+            f.writelines(layer.lines)
+        f.close()   
+    else:
+        print(f"Analysed {len(layerobjs)} Layers, but no matching overhangs found->no arcs generated. If unexpected: look if restricting settings like 'minArea' or 'MinBridgeLength' are correct.")     
     #os.startfile(path2GCode, 'open')
-    print("Code executed successful")
+    print("Script execution complete.")
     input("Push enter to close this window")
 
 ################################# HELPER FUNCTIONS GCode->Polygon #################################
@@ -670,7 +672,7 @@ class Layer():
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
                     continue
-                if not allowedSpacePolygon.contains(poly) or not self.parameters.get("checkForAllowedSpace"):
+                if (not allowedSpacePolygon.contains(poly)) and self.parameters.get("CheckForAllowedSpace"):
                     continue
                 if poly.area<self.parameters.get("MinArea"):
                     continue               
@@ -1053,9 +1055,6 @@ def readSettingsFromGCode2dict(gcodeLines:list)->dict:
     return gCodeSettingDict
 
 def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
-    #if not ";AFTER_LAYER_CHANGE" in gCodeSettingDict.get("layer_gcode"):
-        #warnings.warn("After Layer Change missing keyword, expected: ';AFTER_LAYER_CHANGE' ")
-        #return False
     if not gCodeSettingDict.get("use_relative_e_distances"):
         warnings.warn("Script only works with relative e-distances. Change acordingly.")
         return False
