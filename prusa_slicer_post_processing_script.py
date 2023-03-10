@@ -54,7 +54,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "ArcPrintSpeed":1.5*60, #Unit:mm/min
         #"ArcPrintTemp":gCodeSettingDict.get("temperature"), # unit: Celsius
         "ArcTravelFeedRate":30*60, # slower travel speed, Unit:mm/min
-        "ExtendIntoPerimeter":1.0*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
+        "ExtendIntoPerimeter":1.5*gCodeSettingDict.get("perimeter_extrusion_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
         "MaxDistanceFromPerimeter":2*gCodeSettingDict.get("perimeter_extrusion_width"),#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
         "MinArea":5*10,#Unit:mm2
         "MinBridgeLength":5,#Unit:mm
@@ -92,7 +92,8 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
         "plotArcsEachStep":False, #plot arcs for every filled polygon. use for debugging
         "plotArcsFinal":False, #plot arcs for every filled polygon, when completely filled. use for debugging
         "plotDetectedInfillPoly":False, # plot each detected overhang polygon, use for debugging.
-        "plotEachHilbert":False
+        "plotEachHilbert":False,
+        "PrintDebugVerification":False
         }
     gCodeSettingDict.update(AddManualSettingsDict)
     return gCodeSettingDict
@@ -665,16 +666,21 @@ class Layer():
         '''Verify a poly by measuring the distance to any overhang parameters. Valid if measuredDist<minDistForValidation'''
         overhangs=self.getOverhangPerimeterLineStrings()
         if len(overhangs)>0:
+            if self.parameters.get("PrintDebugVerification"):print(f"Layer {self.layernumber}: {len(overhangs)} Overhangs found")
             allowedSpacePolygon=self.parameters.get("AllowedSpaceForArcs")
             if not allowedSpacePolygon:
                 input(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj, unable to run script. Press Enter.")
                 raise ValueError(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj")
+            if self.parameters.get("PrintDebugVerification"):print("No of Polys:",len(self.polys))    
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
+                    if self.parameters.get("PrintDebugVerification"):print(f"Layer {self.layernumber}: Poly{idp} is (shapely-)invalid")
                     continue
                 if (not allowedSpacePolygon.contains(poly)) and self.parameters.get("CheckForAllowedSpace"):
+                    if self.parameters.get("PrintDebugVerification"):print(f"Layer {self.layernumber}: Poly{idp} is not in allowedSpacePolygon")
                     continue
                 if poly.area<self.parameters.get("MinArea"):
+                    if self.parameters.get("PrintDebugVerification"):print(f"Layer {self.layernumber}: Poly{idp} has to little area: {poly.area:.2f}")
                     continue               
                 for ohp in overhangs:
                     if poly.distance(ohp)<minDistForValidation:
@@ -682,6 +688,7 @@ class Layer():
                             self.validpolys.append(poly)
                             self.deleteTheseInfills.append(idp)
                             break
+                if self.parameters.get("PrintDebugVerification"):print(f"Layer {self.layernumber}: Poly{idp} is not close enough to overhang perimeters")        
 
     
     def prepareDeletion(self,featurename:str="Bridge",polys:list=None)->None:
@@ -1058,6 +1065,9 @@ def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
     if not gCodeSettingDict.get("use_relative_e_distances"):
         warnings.warn("Script only works with relative e-distances. Change acordingly.")
         return False
+    if gCodeSettingDict.get("extrusion_width")<0.001 or gCodeSettingDict.get("perimeter_extrusion_width")<0.001 or gCodeSettingDict.get("solid_infill_extrusion_width")<0.001:
+        warnings.warn("Script only works with extrusionwidth and perimeter_extrusion_width and solid_infill_extrusion_width>0. Change acordingly.")
+        return False    
     if not gCodeSettingDict.get("overhangs"):
         warnings.warn("Overhang detection disabled. Activate for script success!")
         return False
