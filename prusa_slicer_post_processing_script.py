@@ -374,7 +374,6 @@ def main(gCodeFileStream,path2GCode)->None:
         print(f"Analysed {len(layerobjs)} Layers, but no matching overhangs found->no arcs generated. If unexpected: look if restricting settings like 'minArea' or 'MinBridgeLength' are correct.")     
     #os.startfile(path2GCode, 'open')
     print("Script execution complete.")
-    input("Push enter to close this window")
 
 ################################# HELPER FUNCTIONS GCode->Polygon #################################
 ###################################################################################################
