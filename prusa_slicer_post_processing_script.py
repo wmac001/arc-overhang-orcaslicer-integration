@@ -101,7 +101,7 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
 ################################# MAIN FUNCTION #################################
 #################################################################################    
 #at the top, for better reading
-def main(gCodeFileStream,path2GCode)->None:
+def main(gCodeFileStream,path2GCode,skipInput)->None:
     '''Here all the work is done, therefore it is much to long.'''
     gCodeLines=gCodeFileStream.readlines()
     gCodeSettingDict=readSettingsFromGCode2dict(gCodeLines)
@@ -374,22 +374,29 @@ def main(gCodeFileStream,path2GCode)->None:
         print(f"Analysed {len(layerobjs)} Layers, but no matching overhangs found->no arcs generated. If unexpected: look if restricting settings like 'minArea' or 'MinBridgeLength' are correct.")     
     #os.startfile(path2GCode, 'open')
     print("Script execution complete.")
-    input("Push enter to close this window")
+    if not skipInput:
+        input("Press enter to exit.")
 
 ################################# HELPER FUNCTIONS GCode->Polygon #################################
 ###################################################################################################
 
 def getFileStreamAndPath(read=True):
-    if len(sys.argv) != 2:
-        print("Usage: python3 ex1.py <filename>")
-        sys.exit(1)
-    filepath = sys.argv[1]
+    skipInput=False
+    if len(sys.argv) > 2:
+        if sys.argv[1] != '-y':
+            print("Usage: python3 ex1.py <filename>")
+            sys.exit(1)
+        else:
+            skipInput=True
+            filepath = sys.argv[2]
+    else:
+        filepath = sys.argv[1]
     try:
         if read:
             f = open(filepath, "r")
         else:
             f=open(filepath, "w")    
-        return f,filepath
+        return f,filepath,skipInput
     except IOError:
         input("File not found.Press enter.")
         sys.exit(1)
@@ -1163,7 +1170,6 @@ warnings.showwarning = _warning
 
 ################################# MAIN EXECUTION #################################
 ##################################################################################
-
 if __name__=="__main__":
-    gCodeFileStream,path2GCode = getFileStreamAndPath()
-    main(gCodeFileStream,path2GCode)
+    gCodeFileStream,path2GCode, skipInput = getFileStreamAndPath()
+    main(gCodeFileStream,path2GCode, skipInput)
