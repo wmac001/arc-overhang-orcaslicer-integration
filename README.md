@@ -44,7 +44,7 @@ followed by the path to this script
 and the path of the gcode file. Will overwrite the file.
 #### Option B) use it as a automatic post-processing script in PrusaSlicer
 1. open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
-2. In that window enter: `full/path/to/your/python.exe full/path/to/this/script/including/prusa_slicer_post_processing_script.py`  (with blank space between the two paths!)
+2. In that window enter: `C:\full\path\to\your\python.exe C:\full\path\to\this\script\including\prusa_slicer_post_processing_script.py`  (with blank space between the two paths!)
 3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in PrusaSlicer wont change. 
 4. Open the finished gcode file to see the results.
 
