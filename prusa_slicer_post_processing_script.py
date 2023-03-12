@@ -39,6 +39,7 @@ import numpy as np
 from ast import literal_eval
 import warnings
 import random
+import platform
 #from hilbertcurve.hilbertcurve import HilbertCurve
 from hilbert import decode, encode
 ########## Parameters  - adjust values here as needed ##########
@@ -381,22 +382,16 @@ def main(gCodeFileStream,path2GCode,skipInput)->None:
 ###################################################################################################
 
 def getFileStreamAndPath(read=True):
-    skipInput=False
-    if len(sys.argv) > 2:
-        if sys.argv[1] != '-y':
-            print("Usage: python3 ex1.py <filename>")
-            sys.exit(1)
-        else:
-            skipInput=True
-            filepath = sys.argv[2]
-    else:
-        filepath = sys.argv[1]
+    if len(sys.argv) != 2:
+        print("Usage: python3 ex1.py <filename>")
+        sys.exit(1)
+    filepath = sys.argv[1]
     try:
         if read:
             f = open(filepath, "r")
         else:
             f=open(filepath, "w")    
-        return f,filepath,skipInput
+        return f,filepath
     except IOError:
         input("File not found.Press enter.")
         sys.exit(1)
@@ -1171,5 +1166,8 @@ warnings.showwarning = _warning
 ################################# MAIN EXECUTION #################################
 ##################################################################################
 if __name__=="__main__":
-    gCodeFileStream,path2GCode, skipInput = getFileStreamAndPath()
+    gCodeFileStream,path2GCode = getFileStreamAndPath()
+    skipInput=False
+    if platform.system()!="Windows":
+        skipInput=True
     main(gCodeFileStream,path2GCode, skipInput)
