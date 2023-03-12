@@ -44,7 +44,7 @@ followed by the path to this script
 and the path of the gcode file. Will overwrite the file.
 #### Option B) use it as a automatic post-processing script in PrusaSlicer
 1. open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
-2. In that window enter: `full-path-to-your-python-exe full-path-to-this-script`  (with blank space between the two paths!)
+2. In that window enter: `full/path/to/your/python.exe full/path/to/this/script/including/prusa_slicer_post_processing_script.py`  (with blank space between the two paths!)
 3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in PrusaSlicer wont change. 
 4. Open the finished gcode file to see the results.
 
@@ -53,7 +53,7 @@ If the python path contains any empty spaces, mask them as described here (using
 https://manual.slic3r.org/advanced/post-processing
 https://help.prusa3d.com/article/post-processing-scripts_283913
 
-Also, for unix like systems, you need to skip the user input to close the program. You can do it adding a `-y` at the end of the two paths, obtaining something like this: `full-path-to-your-python-exe full-path-to-this-script -y`
+Also, for unix like systems, you need to skip the user input to close the program. You can do it adding a `-y` at the end of the two paths, obtaining something like this: `full/path/to/your/python full/path/to/this/script/including/prusa_slicer_post_processing_script.py -y`
 
 If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
 
