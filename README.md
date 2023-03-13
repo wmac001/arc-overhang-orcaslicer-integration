@@ -3,8 +3,11 @@
 <img src="https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration/blob/main/examples/ExampleCatchImage.png" width=600>
   </p>
 A 3D printer toolpath generation algorithm that lets you print up to 90° overhangs without support material, original Idea by Steven McCulloch: https://github.com/stmcculloch/arc-overhang
+Original fork by Nicolai Wachenschwan: https://github.com/nicolai-wachenschwan/arc-overhang-prusaslicer-integration
 
-**Now it is easy and convinient to use by integrating the functionality into PrusaSlicer as a post-processing script.**
+I am standing on the shoulders of giants and trying to bring this functionality to more people. All I have done is make it work with OrcaSlicer (formerly Soft Fever)
+
+**Now it is easy and convinient to use by integrating the functionality into OrcaSlicer as a post-processing script.**
 
 Steven and I hope that some day this feature gets integrated into slicing software. But until then you can use this script to get the added functionalitiy today!
 
@@ -14,6 +17,7 @@ Steven and I hope that some day this feature gets integrated into slicing softwa
 - Arc Overhang Initial Video: https://youtu.be/fjGeBYOPmHA
 - CNC kitchen's video: https://youtu.be/B0yo-o47688
 - Steven's Instagram: https://www.instagram.com/layershift3d/
+- DalTron's video: COMING SOON! https://www.youtube.com/@DalTronPrinting
 
 This is a basic visualisation how the algorithm works: 
 
@@ -34,7 +38,7 @@ For more details visit: https://github.com/stmcculloch/arc-overhang
 ## 3. Setup-Process
 1. download and install Python 3, at least Version 3.5, check the "add to PATH" box during the installation.
 2. install the librarys [shapely](https://shapely.readthedocs.io/en/stable/), [numpy](https://numpy.org/) and [matplotlib](https://matplotlib.org/) **and new [numpy-hilbert-curve](https://pypi.org/project/numpy-hilbert-curve/)** via "python -m pip install "+library-name in your console (type cmd in start-menu search).
-3. Ready to go! Tested only with PrusaSlicer 2.5 & Python 3.10 :)
+3. Ready to go! Tested only with OrcaSlicer 1.4.5 & Python 3.10 :)
 
 
 ## 4. How to use it:
@@ -42,10 +46,10 @@ For more details visit: https://github.com/stmcculloch/arc-overhang
 Simply open your system console and type 'python ' 
 followed by the path to this script 
 and the path of the gcode file. Will overwrite the file.
-#### Option B) use it as a automatic post-processing script in PrusaSlicer
-1. open PrusaSlicer, go to print-settings-tab->output-options. Locate the window for post-processing-script. 
-2. In that window enter: `C:\full\path\to\your\python.exe C:\full\path\to\this\script\including\prusa_slicer_post_processing_script.py`  (with blank space between the two paths!). For unix like systems (linux, macOS, ecc.) use the `/` instead of `\`, obtaining something like this: `full/path/to/your/python full/path/to/this/script/including/prusa_slicer_post_processing_script.py`
-3. PrusaSlicer will execute the script after the export of the Gcode, therefore the view in PrusaSlicer wont change. 
+#### Option B) use it as a automatic post-processing script in OrcaSlicer
+1. open Orca Slicer, go to Process-Others. Locate the post-processing-script text area.
+2. In that window enter: `C:\full\path\to\your\python.exe C:\full\path\to\this\script\including\orca_slicer_slicer_post_processing_script.py`  (with blank space between the two paths!). For unix like systems (linux, macOS, ecc.) use the `/` instead of `\`, obtaining something like this: `full/path/to/your/python full/path/to/this/script/including/orca_slicer_post_processing_script.py`
+3. OrcaSlicer will execute the script after the export of the Gcode, therefore the view in OrcaSlicer wont change. 
 4. Open the finished gcode file to see the results.
 
 Notes to nail it first try:
@@ -54,7 +58,7 @@ https://manual.slic3r.org/advanced/post-processing
 https://help.prusa3d.com/article/post-processing-scripts_283913
 
 
-If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from PrusaSlicer will be extracted automaticly from the gcode.
+If you want to change generation settings: Open the Script in an editor, scroll to 'Parameter' section. Settings from OrcaSlicer will be extracted automaticly from the gcode.
 
 ## 5. Current Limitations
 1. Some settings need to be taylored to your specific geometry, just like you adapt the settings in your slicer. Details below.
@@ -88,7 +92,7 @@ The bulging downwards happens due to the geometry of the object: The long arcs c
 The warping of <2mm is in my opinion acceptable, as we talk about a very large surface and it is only occuring at the very edge.
 
 ## 6. Suggested Print Settings
-Some PrusaSlicer PrintSettings will be checked and warned if "wrong".
+Some OrcaSlicer PrintSettings will be checked and warned if "wrong".
 
 ### Important Settings in the Script are:
 
@@ -130,7 +134,7 @@ Further optimize the settings or add features like z-hop and quality of life fea
 
 ## 8. Printer Compatibility
 
-By default, the output gcode should print fine on most standard desktop FDM printers you can use with PrusaSlicer. PrusaSlicer is mandatory as the script listens to sepcific keywords....
+By default, the output gcode should print fine on most standard desktop FDM printers you can use with OrcaSlicer. OrcaSlicer is mandatory as the script listens to sepcific keywords....
 
 ## 9. Easy Way to try Out
 
@@ -143,7 +147,7 @@ If you get a successful print using this algorithm, I'd (and I am sure Steven to
 
 ## 11. How the Post-Procssing-Script works
 The script analyses the given gcode-file and splits it into layers. For every layer the informations are saved as an object (Class:Layer).
-Than it searches for "Bridge Infill" tag in the gcode, kindly provided by PrusaSlicer.
+Than it searches for "Bridge Infill" tag in the gcode, kindly provided by OrcaSlicer.
 
 The process will be shown with this simple example geometry(left). It has Bridge Infill at 2 areas in one layer, the right one is the overhang we want to replace.(right)
 ![Explain Geometry](examples/Algorithm_explained/Algorithm_Geometry.png)
