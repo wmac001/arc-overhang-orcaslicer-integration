@@ -262,10 +262,10 @@ def getFileStreamAndPath(read=True):
     if len(sys.argv) != 2:
         print("Usage: python3 ex1.py <filename>")
         sys.exit(1)
-    # filepath = sys.argv[1]
+    filepath = sys.argv[1]
     # filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Creality.gcode")
     #filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Test Overhang - Copy.gcode")
-    filepath = Path("C:\\Users\\Will Mac\\OneDrive\\Desktop\\3D Printing\\GCODE\\FC3S Speaker Cover - Cargo_PA-CF_4h3m.gcode")
+    #filepath = Path("C:\\Users\\Will Mac\\OneDrive\\Desktop\\3D Printing\\GCODE\\FC3S Speaker Cover - Cargo_PA-CF_4h3m.gcode")
     try:
         if read:
             f = open(filepath, "r")
