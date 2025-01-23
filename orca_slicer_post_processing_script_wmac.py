@@ -17,17 +17,35 @@ import random
 def makeFullSettingDict(gCodeSettingDict:dict) -> dict: 
     """Merge Two Dictionarys and set some keys/values explicitly"""
     #the slicer-settings will be imported from GCode. But some are Arc-specific and need to be adapted by you.
+    
+    line_width = gCodeSettingDict.get("line_width")
+    outer_wall_line_width = gCodeSettingDict.get("outer_wall_line_width")
+
+    if isinstance(outer_wall_line_width, str) and outer_wall_line_width.endswith('%'):
+        # If it's a string and ends with '%', it's a percentage
+        percentage_value = outer_wall_line_width.strip('%')  # Remove the '%' character
+        try:
+            # Convert it to a float and calculate based on percentage
+            outer_wall_line_width = float(percentage_value)
+            outer_wall_line_width = line_width * outer_wall_line_width / 100
+        except ValueError:
+            print("Invalid percentage format!")
+    elif isinstance(outer_wall_line_width, (int, float)):
+        # If it's already a number (int or float)
+        outer_wall_line_width
+    
+    
     AddManualSettingsDict={
         #adapt these settings as needed for your specific geometry/printer:
         "AllowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
-        "ArcCenterOffset":2, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs.
+        "ArcCenterOffset":0, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs. #was 2
         "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
         "ArcPrintSpeed":1.5*60, #Unit:mm/min
         "ArcTravelFeedRate":30*60, # slower travel speed, Unit:mm/min
-        "ExtendIntoPerimeter":2.0*gCodeSettingDict.get("outer_wall_line_width"), #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm
-        "MaxDistanceFromPerimeter":2*gCodeSettingDict.get("outer_wall_line_width"),#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more that 1 Arcwidth! Unit:mm
-        "MinArea":5*10,#Unit:mm2
-        "MinBridgeLength":5,#Unit:mm
+        "ExtendIntoPerimeter":2*outer_wall_line_width, #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm #Was 2
+        "MaxDistanceFromPerimeter":1.5*outer_wall_line_width,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more than 1 Arcwidth! Unit:mm #was 2
+        "MinArea":5*10,#MinimumArcAreaUnit:mm2 #was 5*10
+        "MinBridgeLength":0,#Unit:mm #was 5
         "RMax":100, # the max radius of the arcs.
 
         #advanced Settings, you should not need to touch these.
@@ -265,7 +283,7 @@ def getFileStreamAndPath(read=True):
     filepath = sys.argv[1]
     # filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Creality.gcode")
     #filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Test Overhang - Copy.gcode")
-    #filepath = Path("C:\\Users\\Will Mac\\OneDrive\\Desktop\\3D Printing\\GCODE\\FC3S Speaker Cover - Cargo_PA-CF_4h3m.gcode")
+    # filepath = Path("C:\\Users\\Will Mac\\OneDrive\\Desktop\\3D Printing\\GCODE\\FC3S Speaker Cover - Cargo_PA-CF_1h1m.gcode")
     try:
         if read:
             f = open(filepath, "r")
