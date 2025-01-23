@@ -49,8 +49,14 @@ and the path of the gcode file. Will overwrite the file.
 #### Option B) use it as a automatic post-processing script in OrcaSlicer
 1. open Orca Slicer, go to Process-Others. Locate the post-processing-script text area.
 2. In that window enter: `C:\full\path\to\your\python.exe C:\full\path\to\this\script\including\orca_slicer_slicer_post_processing_script.py`  (with blank space between the two paths!). For unix like systems (linux, macOS, ecc.) use the `/` instead of `\`, obtaining something like this: `full/path/to/your/python full/path/to/this/script/including/orca_slicer_post_processing_script.py`
-3. OrcaSlicer will execute the script after the export of the Gcode, therefore the view in OrcaSlicer wont change. 
-4. Open the finished gcode file to see the results.
+
+3. Copy and paste this and modify (windows user only): "C:\Users\Your User Folder\AppData\Local\Programs\Python\***Python313***\python.exe" "C:\\Users\\Your User Folder\\**Your Post Processing Scripts Folder Location**\\orca_slicer_post_processing_script_wmac.py";
+         Notes: ***Python313*** is my current version. Change this to whatever folder. It's the default location where python installs on windows.
+         **Your Post Processing Scripts Folder Location**: Locate your post processing script location and replace all the '\'  with '\\'
+         
+   
+5. OrcaSlicer will execute the script after the export of the Gcode, therefore the view in OrcaSlicer wont change. 
+6. Open the finished gcode file to see the results.
 
 Notes to nail it first try:
 If the python path contains any empty spaces, mask them as described here (using "\ " on unix like sistems and "! " on windows): 
