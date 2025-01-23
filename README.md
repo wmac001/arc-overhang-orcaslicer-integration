@@ -55,8 +55,10 @@ and the path of the gcode file. Will overwrite the file.
          **Your Post Processing Scripts Folder Location**: Locate your post processing script location and replace all the '\'  with '\\'
          
    
-5. OrcaSlicer will execute the script after the export of the Gcode, therefore the view in OrcaSlicer wont change. 
-6. Open the finished gcode file to see the results.
+5. Python console will open and run the script after the export of the Gcode. If it runs and it says code executed successful, hit enter and it'll Export or Print to your machine depending on the option selected in Orca Slicer.
+       If some pictures pop up. Don't worry about it and just close it. Those are just error handlers because those layers don't have a defined boundary and there are no arcs to create.
+7. Open the finished gcode file using orca slicer to see the results. You can drag and drop.
+8. View the areas where the arc prints, if it looks good. You're good to go. If it looks not what you want, change the variables at the beginning of the script using Visual Studio Code.
 
 Notes to nail it first try:
 If the python path contains any empty spaces, mask them as described here (using "\ " on unix like sistems and "! " on windows): 
