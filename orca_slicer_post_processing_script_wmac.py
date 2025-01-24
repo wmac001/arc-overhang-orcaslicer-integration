@@ -5,16 +5,43 @@ import os
 from shapely import Point, Polygon, LineString, GeometryCollection, MultiLineString, MultiPolygon
 from shapely.ops import nearest_points
 from shapely.ops import linemerge, unary_union
+from shapely.geometry.polygon import orient  # Ensure this is imported
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from ast import literal_eval
 import warnings
 import random
+import argparse
 
 # %%
 ########## Parameters  - adjust values here as needed ##########
-def makeFullSettingDict(gCodeSettingDict:dict) -> dict: 
+def makeFullSettingDict(
+        PrintableAreaX: int,
+        PrintableAreaY: int,
+        ArcCenterOffset: float,
+        ArcMinPrintSpeed: float,
+        ArcPrintSpeed: float,
+        ArcTravelFeedRate: float,
+        ExtendIntoPerimeter: float,
+        MaxDistanceFromPerimeter: float,
+        MinArea: float,
+        MinBridgeLength: float,
+        MaxArcRadius: float,
+        ArcExtrusionMultiplier: float,
+        ArcSlowDownBelowThisDuration: float,
+        ArcWidth: float,
+        CornerImportanceMultiplier: float,
+        DistanceBetweenPointsOnStartLine: float,
+        GCodeArcPtMinDist: float,
+        ExtendArcDist: float,
+        MinStartArcs: float,
+        PointsPerCircle: int,
+        SafetyBreak_MaxArcNumber: float,
+        WarnBelowThisFillingPercentage: float,
+        UseLeastAmountOfCenterPoints: bool, 
+        gCodeSettingDict:dict) -> dict: 
+#def getFileStreamAndPath(input_file: str, read=True):
     """Merge Two Dictionarys and set some keys/values explicitly"""
     #the slicer-settings will be imported from GCode. But some are Arc-specific and need to be adapted by you.
     
@@ -37,30 +64,30 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
     
     AddManualSettingsDict={
         #adapt these settings as needed for your specific geometry/printer:
-        "AllowedSpaceForArcs": Polygon([[0,0],[500,0],[500,500],[0,500]]),#have control in which areas Arcs shall be generated
-        "ArcCenterOffset":0, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs. #was 2
-        "ArcMinPrintSpeed":0.5*60,#Unit:mm/min
-        "ArcPrintSpeed":1.5*60, #Unit:mm/min
-        "ArcTravelFeedRate":30*60, # slower travel speed, Unit:mm/min
-        "ExtendIntoPerimeter":2*outer_wall_line_width, #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm #Was 2
-        "MaxDistanceFromPerimeter":1.5*outer_wall_line_width,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more than 1 Arcwidth! Unit:mm #was 2
-        "MinArea":5*10,#MinimumArcAreaUnit:mm2 #was 5*10
-        "MinBridgeLength":0,#Unit:mm #was 5
-        "RMax":100, # the max radius of the arcs.
+        "AllowedSpaceForArcs": Polygon([[0,0],[PrintableAreaX,0],[PrintableAreaX,PrintableAreaY],[0,PrintableAreaY]]),#have control in which areas Arcs shall be generated
+        "ArcCenterOffset":ArcCenterOffset, # Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs. #was 2
+        "ArcMinPrintSpeed":ArcMinPrintSpeed*60,#Unit:mm/min
+        "ArcPrintSpeed":ArcPrintSpeed*60, #Unit:mm/min
+        "ArcTravelFeedRate":ArcTravelFeedRate*60, # slower travel speed, Unit:mm/min
+        "ExtendIntoPerimeter":ExtendIntoPerimeter*outer_wall_line_width, #min=0.5extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm #Was 2
+        "MaxDistanceFromPerimeter":MaxDistanceFromPerimeter*outer_wall_line_width,#Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more than 1 Arcwidth! Unit:mm #was 2
+        "MinArea":MinArea,#MinimumArcAreaUnit:mm2 #was 5*10
+        "MinBridgeLength":MinBridgeLength,#Unit:mm #was 5
+        "RMax":MaxArcRadius, # the max radius of the arcs.
 
         #advanced Settings, you should not need to touch these.
-        "ArcExtrusionMultiplier":1.35,
-        "ArcSlowDownBelowThisDuration":3,# Arc Time below this Duration =>slow down, Unit: sec
-        "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*0.85, #change the spacing between the arcs,should be nozzle_diameter #was0.95
-        "CornerImportanceMultiplier":0.2, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
-        "DistanceBetweenPointsOnStartLine":0.1,#used for redestribution, if start fails.
-        "GCodeArcPtMinDist":0.1, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
-        "ExtendArcDist":1.0, # extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet), Unit:mm #was 1
-        "MinStartArcs":2, # how many arcs shall be generated in first step
-        "PointsPerCircle":80, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
-        "SafetyBreak_MaxArcNumber":2000, #max Number of Arc Start Points. prevents While loop form running for ever.
-        "WarnBelowThisFillingPercentage":90, # fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent
-        "UseLeastAmountOfCenterPoints":False, # always generates arcs until rMax is reached, divide the arcs into pieces in needed. reduces the amount of centerpoints.
+        "ArcExtrusionMultiplier":ArcExtrusionMultiplier,
+        "ArcSlowDownBelowThisDuration":ArcSlowDownBelowThisDuration,# Arc Time below this Duration =>slow down, Unit: sec
+        "ArcWidth":gCodeSettingDict.get("nozzle_diameter")*ArcWidth, #change the spacing between the arcs,should be nozzle_diameter #was0.95
+        "CornerImportanceMultiplier":CornerImportanceMultiplier, # Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.
+        "DistanceBetweenPointsOnStartLine":DistanceBetweenPointsOnStartLine,#used for redestribution, if start fails.
+        "GCodeArcPtMinDist":GCodeArcPtMinDist, # min Distance between points on the Arcs to for seperate GCode Command. Unit:mm
+        "ExtendArcDist":ExtendArcDist, # extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet), Unit:mm #was 1
+        "MinStartArcs":MinStartArcs, # how many arcs shall be generated in first step
+        "PointsPerCircle":PointsPerCircle, # each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. 
+        "SafetyBreak_MaxArcNumber":SafetyBreak_MaxArcNumber, #max Number of Arc Start Points. prevents While loop form running for ever.
+        "WarnBelowThisFillingPercentage":WarnBelowThisFillingPercentage, # fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent
+        "UseLeastAmountOfCenterPoints":UseLeastAmountOfCenterPoints, # always generates arcs until rMax is reached, divide the arcs into pieces in needed. reduces the amount of centerpoints.
     
         #settings for easier debugging:
         "plotStart":False, # plot the detected geoemtry in the prev Layer and the StartLine for Arc-Generation, use for debugging
@@ -75,15 +102,79 @@ def makeFullSettingDict(gCodeSettingDict:dict) -> dict:
 ################################# MAIN FUNCTION #################################
 #################################################################################    
 #at the top, for better reading
-def main(gCodeFileStream,path2GCode)->None:
+def main(
+    input_file, 
+    PrintableAreaX, 
+    PrintableAreaY,
+    ArcCenterOffset,
+    ArcMinPrintSpeed,
+    ArcPrintSpeed,
+    ArcTravelFeedRate,
+    ExtendIntoPerimeter,
+    MaxDistanceFromPerimeter,
+    MinArea,
+    MinBridgeLength,
+    MaxArcRadius,
+    ArcExtrusionMultiplier,
+    ArcSlowDownBelowThisDuration,
+    ArcWidth,
+    CornerImportanceMultiplier,
+    DistanceBetweenPointsOnStartLine,
+    GCodeArcPtMinDist,
+    ExtendArcDist,
+    MinStartArcs,
+    PointsPerCircle,
+    SafetyBreak_MaxArcNumber,
+    WarnBelowThisFillingPercentage,
+    UseLeastAmountOfCenterPoints
+) -> None:
     '''Here all the work is done, therefore it is much to long.'''
+    gCodeFileStream,path2GCode = getFileStreamAndPath(input_file, read=True)
+
     gCodeLines=gCodeFileStream.readlines()
     gCodeSettingDict=readSettingsFromGCode2dict(gCodeLines)
-    parameters=makeFullSettingDict(gCodeSettingDict)
-    if not checkforNecesarrySettings(gCodeSettingDict):
-        warnings.warn("Incompatible Settings used!")
-        input("Can not run script, gcode unmodified. Press enter to close.")
-        raise ValueError("Incompatible Settings used!") 
+    parameters=makeFullSettingDict(
+        PrintableAreaX, 
+        PrintableAreaY,
+        ArcCenterOffset,
+        ArcMinPrintSpeed,
+        ArcPrintSpeed,
+        ArcTravelFeedRate,
+        ExtendIntoPerimeter,
+        MaxDistanceFromPerimeter,
+        MinArea,
+        MinBridgeLength,
+        MaxArcRadius,
+        ArcExtrusionMultiplier,
+        ArcSlowDownBelowThisDuration,
+        ArcWidth,
+        CornerImportanceMultiplier,
+        DistanceBetweenPointsOnStartLine,
+        GCodeArcPtMinDist,
+        ExtendArcDist,
+        MinStartArcs,
+        PointsPerCircle,
+        SafetyBreak_MaxArcNumber,
+        WarnBelowThisFillingPercentage,
+        UseLeastAmountOfCenterPoints,
+        gCodeSettingDict)
+    warning_text = ''
+    #if not checkforNecesarrySettings(gCodeSettingDict):
+        #warnings.warn("Incompatible Settings used!")
+        #input("Can not run script, gcode unmodified. Press enter to close.")
+        #raise ValueError("Incompatible Settings used!") 
+    necessary_list = checkforNecesarrySettings(gCodeSettingDict)
+
+    if necessary_list:
+    # Display all warnings
+        for necessary_setting in necessary_list:
+            warnings.warn(necessary_setting)  # Pass each warning string, not the list
+        
+        # Prompt for user input dynamically
+        prompt_message = "Can not run script, gcode unmodified. The following issues were found:\n" + "\n".join(necessary_list) + "\nPress Enter to close."
+        input(prompt_message)
+        
+        raise ValueError("Incompatible Settings used!")
         
     layerobjs=[]
     if gCodeFileStream:
@@ -98,8 +189,8 @@ def main(gCodeFileStream,path2GCode)->None:
                 continue # no overhangs in the first layer and dont mess with the setup
             else:
                 layer.extract_features()
-                if idl==36:
-                    print(idl) # Stoping at layer 7 and 67 needs to stop at 36 and 37
+                #if idl==36:
+                    #print(idl) # Stoping at layer 7 and 67 needs to stop at 36 and 37
                 layer.spotBridgeInfill()
                 layer.makePolysFromBridgeInfill(extend=parameters.get("ExtendIntoPerimeter",1))
                 layer.mergePolys()
@@ -270,30 +361,36 @@ def main(gCodeFileStream,path2GCode)->None:
     f.close()    
     #os.startfile(path2GCode, 'open')
     print("Code executed successful")
-    input("Push enter to close this window")
+    #input("Push enter to close this window")
 
 # %%
 ################################# HELPER FUNCTIONS GCode->Polygon #################################
 ###################################################################################################
 
-def getFileStreamAndPath(read=True):
-    if len(sys.argv) != 2:
-        print("Usage: python3 ex1.py <filename>")
+# Function to get the file stream and path
+def getFileStreamAndPath(input_file: str, read=True):
+    # Use the input_file argument (passed via argparse)
+    filepath = Path(input_file)
+
+    # Check if the file exists
+    if not filepath.exists():
+        print(f"File not found: {filepath}")
+        input("File not found. Press enter to exit.")
         sys.exit(1)
-    filepath = sys.argv[1]
-    # filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Creality.gcode")
-    #filepath = Path("R:\\3D Printer\\Send To Ender 3 v2\\Sun Roof\\Test Overhang - Copy.gcode")
-    # filepath = Path("C:\\Users\\Will Mac\\OneDrive\\Desktop\\3D Printing\\GCODE\\FC3S Speaker Cover - Cargo_PA-CF_1h1m.gcode")
+
     try:
+        # Open the file based on the 'read' flag
         if read:
-            f = open(filepath, "r")
+            f = open(filepath, "r")  # Open for reading
         else:
-            f=open(filepath, "w")    
-        return f,filepath
+            f = open(filepath, "w")  # Open for writing
+            
+        return f, filepath
     except IOError:
-        print("File not found")
-        input("File not found.Press enter.")
+        print("Error opening the file.")
+        input("Error opening the file. Press enter to exit.")
         sys.exit(1)
+
         
 def splitGCodeIntoLayers(gcode:list)->list:
     gcode_list = []
@@ -410,7 +507,7 @@ class Layer():
                             warnings.warn(f"Layer {self.layernumber}: Could not fetch real StartPoint.")
                 linesWithStart=linesWithStart+lines
                 extPerimeterIsStarted=True
-            if (idf==len(self.features)-1 and extPerimeterIsStarted) or (extPerimeterIsStarted and not ("Outer" in ftype or "Overhang" in ftype)) :#finish the poly if end of featurelist or different feature
+            if (idf==len(self.features)-1 and extPerimeterIsStarted) or (extPerimeterIsStarted and not ("Outer" in ftype or "Inner" in ftype)) :#finish the poly if end of featurelist or different feature
                 poly=makePolygonFromGCode(linesWithStart)
                 if poly:
                     self.extPerimeterPolys.append(poly) 
@@ -479,7 +576,10 @@ class Layer():
             pts=[]
             isWipeMove=False
             travelstr=f"F{self.parameters.get('travel_speed')*60}"
+                #print(ftype) #debug
+                #print(featureName) #debug
             if featureName in ftype:
+                #print(idf)
                 if includeRealStartPt and idf>0:
                     sp=self.getRealFeatureStartPoint(idf)
                     if sp:pts.append(sp)       
@@ -506,9 +606,12 @@ class Layer():
         return parts
         #print(parts)
     def spotBridgeInfill(self)->None:
-        parts=self.spotFeaturePoints("Bridge",splitAtTravel=True)
+        parts=self.spotFeaturePoints("Overhang",splitAtTravel=True) #BRIDGE
         for idf,infillpts in enumerate(parts):
             self.binfills.append(BridgeInfill(infillpts))
+        #print(self.binfills) #debug    
+
+    
     def makePolysFromBridgeInfill(self,extend:float=1)->None:
         for bInfill in self.binfills:
             infillPts=bInfill.pts
@@ -523,15 +626,18 @@ class Layer():
                 plt.axis('square')
                 plt.show()
     def getOverhangPerimeterLineStrings(self):
-        # parts=self.spotFeaturePoints("Overhang perimeter",includeRealStartPt=True)
+        
         parts=self.spotFeaturePoints("Overhang wall",includeRealStartPt=True)
         if parts:
             return [LineString(pts) for pts in parts]
         else:
-            return []    
+            return []
+
     def verifyinfillpolys(self,minDistForValidation=0.5)->None:
         '''Verify a poly by measuring the distance to any overhang parameters. Valid if measuredDist<minDistForValidation'''
         overhangs=self.getOverhangPerimeterLineStrings()
+        #print(overhangs) #DEBUG
+        #print(len(overhangs)) #DEBUG
         if len(overhangs)>0:
             allowedSpacePolygon=self.parameters.get("AllowedSpaceForArcs")
             if not allowedSpacePolygon:
@@ -539,17 +645,21 @@ class Layer():
                 raise ValueError(f"Layer {self.layernumber}: no allowed space Polygon provided to layer obj")
             # if len(self.polys)>0:
                 # print(self.polys) # Not getting past line 538 missing polys?
-            if len(self.polys)==0:
-                print("No Polys") 
-                
+            #if len(self.polys)==0:
+                #print("No Polys") 
+            #print(self.polys)  #debug
             for idp,poly in enumerate(self.polys):
                 if not poly.is_valid:
-                    continue
+                    continue 
+                    #print("poly not valid") #debug
                 if not allowedSpacePolygon.contains(poly):
                     continue
+                    #print("poly not allowed space") #debug
                 if poly.area<self.parameters.get("MinArea"):
                     continue
+                    #print("poly area less than min area") #debug
                 for ohp in overhangs:
+                    #print("poly area less than min area") #debug
                     if poly.distance(ohp)<minDistForValidation:
                         if ohp.length>self.parameters.get("MinBridgeLength"):
                             self.validpolys.append(poly)
@@ -866,31 +976,30 @@ def readSettingsFromGCode2dict(gcodeLines:list)->dict:
             else:
                 print("unmatching setting:",setting)          
     return gCodeSettingDict
-def checkforNecesarrySettings(gCodeSettingDict:dict)->bool:
-    # if not "; CHANGE_LAYER" in gCodeSettingDict.get("layer_change_gcode"):
-    #     warnings.warn("After Layer Change missing keyword, expected: ';AFTER_LAYER_CHANGE' ")
-    #     return False
+def checkforNecesarrySettings(gCodeSettingDict: dict) -> list:
+    warnings_list = []
+    necessary_list = []
     if not gCodeSettingDict.get("use_relative_e_distances"):
-        warnings.warn("Script only works with relative e-distances. Change acordingly.")
-        return False
+        warnings_list.append("Script only works with relative e-distances. Change accordingly.")
+        necessary_list.append("use_relative_e_distances")
+        
     if not gCodeSettingDict.get("detect_overhang_wall"):
-        warnings.warn("Overhang detection disabled. Activate for script success!")
-        return False
-    if gCodeSettingDict.get("extra_perimeters_on_overhangs = 1"):
-        warnings.warn("Extra perimeters on overhang is enabled . Deactivate for script success!")
-        return False
-    #if gCodeSettingDict.get("accel_to_decel_enable = 1"):
-        #warnings.warn("Accel to decel is enabled . Deactivate for script success!")
-        #return False   
+        warnings_list.append("Overhang detection disabled. Activate for script success!")
+        necessary_list.append("detect_overhang_wall")
+    if gCodeSettingDict.get("extra_perimeters_on_overhangs = 0"):
+        warnings_list.append("Extra perimeters on overhang is disabled. Enable for script success!")
+        necessary_list.append("extra_perimeters_on_overhangs = 0")
+
     if gCodeSettingDict.get("infill_first"):
-        warnings.warn("Infill is printed before perimeter. This can cause problems with the script.")
+        warnings_list.append("Infill is printed before perimeter. This can cause problems with the script.")
+        
     if gCodeSettingDict.get("external_perimeters_first"):
-        warnings.warn("External perimeter is printed before inner perimeters. Change for better overhang performance. ")
-    if gCodeSettingDict.get("external_perimeters_first"):
-        warnings.warn("External perimeter is printed before inner perimeters. Change for better overhang performance. ")
+        warnings_list.append("External perimeter is printed before inner perimeters. Change for better overhang performance.")
+        
     if not gCodeSettingDict.get("reduce_crossing_wall"):
-        warnings.warn("Travel Moves may cross the outline and therefore cause artefacts in arc generation.")    
-    return True
+        warnings_list.append("Travel Moves may cross the outline and therefore cause artifacts in arc generation.")
+        
+    return warnings_list
 def calcEStepsPerMM(settingsdict:dict)->float:
     eVol = (settingsdict.get("nozzle_diameter")/2)**2 * np.pi *settingsdict.get("ArcExtrusionMultiplier",1)#printing in midair will result in circular shape. Scource: https://manual.slic3r.org/advanced/flow-math
     if settingsdict.get("use_volumetric_e"):
@@ -951,7 +1060,63 @@ warnings.showwarning = _warning
 
 # %%
 if __name__=="__main__":
-    gCodeFileStream,path2GCode = getFileStreamAndPath()
-    main(gCodeFileStream,path2GCode)
+    #gCodeFileStream,path2GCode = getFileStreamAndPath()
+    #main(gCodeFileStream,path2GCode)
 
 
+    parser = argparse.ArgumentParser(description="Post-process G-code for Arc Overhang.")
+    parser.add_argument("input_file", help="Path to the input G-code file")
+    parser.add_argument("-PrintableAreaX", type=int, default=500, help="X Axis Printable Bed Area in MM")
+    parser.add_argument("-PrintableAreaY", type=int, default=500, help="Y Axis Printable Bed Area in MM")
+    parser.add_argument("-ArcCenterOffset", type=float, default=2, help="Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs.")
+    parser.add_argument("-ArcMinPrintSpeed", type=float, default=0.5, help="Unit:mm/min")
+    parser.add_argument("-ArcPrintSpeed", type=float, default=1.5, help="Unit:mm/min")
+    parser.add_argument("-ArcTravelFeedRate", type=float, default=30, help="slower travel speed, Unit:mm/min")
+    parser.add_argument("-ExtendIntoPerimeter", type=float, default=2, help="min=0.5 extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm")
+    parser.add_argument("-MaxDistanceFromPerimeter", type=float, default=2, help="Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs. Should be more than 1 Arcwidth! Unit:mm")
+    parser.add_argument("-MinArea", type=float, default=500, help="Minimum Arc Area in Unit:mm2")
+    parser.add_argument("-MinBridgeLength", type=float, default=5, help="Unit:mm")
+    parser.add_argument("-MaxArcRadius", type=float, default=10, help="the max radius of the arcs.")
+    parser.add_argument("-ArcExtrusionMultiplier", type=float, default=1.35, help="Extrusion Multiplier for the Arc in %. 1.35 = 135%")
+    parser.add_argument("-ArcSlowDownBelowThisDuration", type=float, default=3, help="Arc Time below this Duration =>slow down, Unit: sec")
+    parser.add_argument("-ArcWidth", type=float, default=.85, help="change the spacing between the arcs,should be nozzle_diameter. ArcWidthxNozzle Diameter. I.e .85 x nozzle diameter")
+    parser.add_argument("-CornerImportanceMultiplier", type=float, default=0.2, help="Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important.")
+    parser.add_argument("-DistanceBetweenPointsOnStartLine", type=float, default=0.1, help="used for redestribution, if start fails.")
+    parser.add_argument("-GCodeArcPtMinDist", type=float, default=0.1, help="min Distance between points on the Arcs to for seperate GCode Command. Unit:mm")
+    parser.add_argument("-ExtendArcDist", type=float, default=1, help="extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet), Unit:mm")
+    parser.add_argument("-MinStartArcs", type=float, default=2, help="how many arcs shall be generated in first step")
+    parser.add_argument("-PointsPerCircle", type=int, default=80, help="each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. ")
+    parser.add_argument("-SafetyBreak_MaxArcNumber", type=float, default=2000, help="max Number of Arc Start Points. prevents While loop form running for ever.")
+    parser.add_argument("-WarnBelowThisFillingPercentage", type=float, default=90, help="fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent")
+    parser.add_argument("-UseLeastAmountOfCenterPoints", type=bool, default=False, help="always generates arcs until rMax is reached, divide the arcs into pieces in needed. reduces the amount of centerpoints.")
+    args = parser.parse_args()
+
+    main(
+        input_file=args.input_file,
+        PrintableAreaX=args.PrintableAreaX,
+        PrintableAreaY=args.PrintableAreaY,
+        ArcCenterOffset=args.ArcCenterOffset,
+        ArcMinPrintSpeed=args.ArcMinPrintSpeed,
+        ArcPrintSpeed=args.ArcPrintSpeed,
+        ArcTravelFeedRate=args.ArcTravelFeedRate,
+        ExtendIntoPerimeter=args.ExtendIntoPerimeter,
+        MaxDistanceFromPerimeter=args.MaxDistanceFromPerimeter,
+        MinArea=args.MinArea,
+        MinBridgeLength=args.MinBridgeLength,
+        MaxArcRadius=args.MaxArcRadius,
+        ArcExtrusionMultiplier=args.ArcExtrusionMultiplier,
+        ArcSlowDownBelowThisDuration=args.ArcSlowDownBelowThisDuration,
+        ArcWidth=args.ArcWidth,
+        CornerImportanceMultiplier=args.CornerImportanceMultiplier,
+        DistanceBetweenPointsOnStartLine=args.DistanceBetweenPointsOnStartLine,
+        GCodeArcPtMinDist=args.GCodeArcPtMinDist,
+        ExtendArcDist=args.ExtendArcDist,
+        MinStartArcs=args.MinStartArcs,
+        PointsPerCircle=args.PointsPerCircle,
+        SafetyBreak_MaxArcNumber=args.SafetyBreak_MaxArcNumber,
+        WarnBelowThisFillingPercentage=args.WarnBelowThisFillingPercentage,
+        UseLeastAmountOfCenterPoints=args.UseLeastAmountOfCenterPoints
+    )
+
+
+# %%
