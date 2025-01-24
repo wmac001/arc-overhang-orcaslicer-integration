@@ -53,6 +53,30 @@ and the path of the gcode file. Will overwrite the file.
 3. Copy and paste this and modify (windows user only): "C:\Users\Your User Folder\AppData\Local\Programs\Python\***Python313***\python.exe" "C:\\Users\\Your User Folder\\**Your Post Processing Scripts Folder Location**\\orca_slicer_post_processing_script_wmac.py";
          Notes: ***Python313*** is my current version. Change this to whatever folder. It's the default location where python installs on windows.
          **Your Post Processing Scripts Folder Location**: Locate your post processing script location and replace all the '\'  with '\\'
+         OPTIONAL TUNING: Add to end of the script command above. I.e. "python path" "script location" -Argument1 123 -Argument2 456
+         "-PrintableAreaX", type=int, default=500, help="X Axis Printable Bed Area in MM"
+        "-PrintableAreaY", type=int, default=500, help="Y Axis Printable Bed Area in MM"
+        "-ArcCenterOffset", type=float, default=2, help="Unit:mm, prevents very small Arcs by hiding the center in not printed section. Make 0 to get into tricky spots with smaller arcs."
+        "-ArcMinPrintSpeed", type=float, default=0.5, help="Unit:mm/min"
+        "-ArcPrintSpeed", type=float, default=1.5, help="Unit:mm/min"
+        "-ArcTravelFeedRate", type=float, default=30, help="slower travel speed, Unit:mm/min"
+        "-ExtendIntoPerimeter", type=float, default=2, help="min=0.5 extrusionwidth!, extends the Area for arc generation, put higher to go through small passages. Unit:mm"
+        "-MaxDistanceFromPerimeter", type=float, default=2, help="Control how much bumpiness you allow between arcs and perimeter. lower will follow perimeter better, but create a lot of very small arcs.               Should be more than 1 Arcwidth! Unit:mm"
+        "-MinArea", type=float, default=500, help="Minimum Arc Area in Unit:mm2"
+        "-MinBridgeLength", type=float, default=5, help="Unit:mm"
+        "-MaxArcRadius", type=float, default=10, help="the max radius of the arcs."
+        "-ArcExtrusionMultiplier", type=float, default=1.35, help="Extrusion Multiplier for the Arc in %. 1.35 = 135%"
+        "-ArcSlowDownBelowThisDuration", type=float, default=3, help="Arc Time below this Duration =>slow down, Unit: sec"
+        "-ArcWidth", type=float, default=.85, help="change the spacing between the arcs,should be nozzle_diameter. ArcWidthxNozzle Diameter. I.e .85 x nozzle diameter"
+        "-CornerImportanceMultiplier", type=float, default=0.2, help="Startpoint for Arc generation is chosen close to the middle of the StartLineString and at a corner. Higher=>Cornerselection more important."
+        "-DistanceBetweenPointsOnStartLine", type=float, default=0.1, help="used for redestribution, if start fails."
+        "-GCodeArcPtMinDist", type=float, default=0.1, help="min Distance between points on the Arcs to for seperate GCode Command. Unit:mm"
+        "-ExtendArcDist", type=float, default=1, help="extend Arcs tangentially for better bonding bewteen them, only end-piece affected(yet, Unit:mm"
+        "-MinStartArcs", type=float, default=2, help="how many arcs shall be generated in first step"
+        "-PointsPerCircle", type=int, default=80, help="each Arc starts as a discretized circle. Higher will slow down the code but give more accurate results for the arc-endings. "
+        "-SafetyBreak_MaxArcNumber", type=float, default=2000, help="max Number of Arc Start Points. prevents While loop form running for ever."
+        "-WarnBelowThisFillingPercentage", type=float, default=90, help="fill the overhang at least XX%, else send a warning. Easier detection of errors in small/delicate areas. Unit:Percent"
+        "-UseLeastAmountOfCenterPoints", type=bool, default=False, help="always generates arcs until rMax is reached, divide the arcs into pieces in needed. reduces the amount of centerpoints."
          
    
 5. Python console will open and run the script after the export of the Gcode. If it runs and it says code executed successful, hit enter and it'll Export or Print to your machine depending on the option selected in Orca Slicer.
